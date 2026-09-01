@@ -52,7 +52,7 @@ function join() {
         <button type="submit">Join room</button>
       </form>
 
-      <p class="fine-print">Use the same Wi-Fi network as the host device.</p>
+      <p class="fine-print">Ask the host for the room code shown on their screen.</p>
     </section>
   </main>
 </template>

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "start": "bun run server.ts",
     "serve": "bun run build && bun run server.ts",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",

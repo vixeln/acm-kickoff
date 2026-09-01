@@ -130,6 +130,20 @@ button:active {
   transform: translateY(0);
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+  transform: none;
+}
+
+.form-error {
+  margin: 16px 0 0;
+  color: #a23b2a;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .fine-print {
   margin: 24px 0 0;
   color: #85878b;

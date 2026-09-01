@@ -15,6 +15,12 @@ function installNetworkInfoMiddleware(
     response.setHeader('Cache-Control', 'no-store')
     response.end(JSON.stringify({ urls: getLanUrls(port, '/login') }))
   })
+
+  middlewares.use('/api/host/status', (_request, response) => {
+    response.setHeader('Content-Type', 'application/json')
+    response.setHeader('Cache-Control', 'no-store')
+    response.end(JSON.stringify({ authenticated: true, configured: true }))
+  })
 }
 
 // https://vite.dev/config/

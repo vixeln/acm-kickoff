@@ -47,6 +47,21 @@ bun run serve
 
 This builds the app and serves it on port `8080`. Other devices can connect using `http://<this-device-ip>:8080`. The Bun server also exposes the WebSocket endpoint at `/ws`.
 
+### Deploy to Railway
+
+The included `Dockerfile` and `railway.json` configure a Bun deployment with a `/health`
+readiness check. Connect this repository to a Railway service, add a public domain, and set
+these service variables before deploying:
+
+```text
+HOST_PASSWORD=<a long, unique password>
+HOST_SESSION_SECRET=<a separate random secret>
+```
+
+Railway supplies `PORT` automatically. Keep the service at one replica while room and
+WebSocket state are stored in memory. The host opens `/host`; players use the public root URL
+or scan the QR code.
+
 ### Type-Check, Compile and Minify for Production
 
 ```sh
