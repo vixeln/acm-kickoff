@@ -2,11 +2,14 @@ FROM oven/bun:1.3.14-alpine AS build
 
 WORKDIR /app
 
+# vue-tsc currently requires the Node runtime to resolve .vue modules correctly.
+RUN apk add --no-cache nodejs
+
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY . .
-RUN bun run build
+RUN bun run build-only && node node_modules/vue-tsc/bin/vue-tsc.js --build
 
 FROM oven/bun:1.3.14-alpine AS runtime
 
