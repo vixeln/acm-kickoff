@@ -10,6 +10,7 @@ function isPrivateIPv4(address: string) {
   )
 }
 
+/** Returns unique LAN URLs ordered by their likelihood of being reachable by another device. */
 export function getLanUrls(port: number, path = '') {
   const addresses = Object.entries(networkInterfaces())
     .flatMap(([interfaceName, entries]) =>

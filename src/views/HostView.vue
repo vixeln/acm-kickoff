@@ -18,6 +18,7 @@ const isLoopbackHost = computed(() =>
 
 async function loadConnectionAddress() {
   try {
+    // Public deployments use their HTTPS origin; localhost asks Bun/Vite for a reachable LAN IP.
     let address = `${window.location.origin}/login`
 
     if (isLoopbackHost.value) {

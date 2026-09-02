@@ -10,6 +10,7 @@ function installNetworkInfoMiddleware(
   middlewares: { use(path: string, handler: (_request: unknown, response: import('node:http').ServerResponse) => void): void },
   port: number,
 ) {
+  // These responses mimic the subset of the Bun API required by the host view during Vite dev.
   middlewares.use('/api/network-info', (_request, response) => {
     response.setHeader('Content-Type', 'application/json')
     response.setHeader('Cache-Control', 'no-store')

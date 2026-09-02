@@ -48,6 +48,7 @@ function signHostSession(expiresAt: number) {
   return `${expiresAt}.${signature}`
 }
 
+/** Verifies the stateless host cookie without storing server-side session records. */
 function hasValidHostSession(request: Request) {
   if (!hostSessionSecret) return false
 
@@ -70,11 +71,13 @@ function hasValidHostSession(request: Request) {
   )
 }
 
+/** Localhost stays convenient; every non-loopback host must present a signed session. */
 function isHostAuthorized(request: Request, bunServer: Bun.Server<SocketData>) {
   if (!hostPassword) return isLoopbackRequest(request, bunServer)
   return hasValidHostSession(request)
 }
 
+/** Hashing both values gives timingSafeEqual fixed-size inputs. */
 function passwordsMatch(suppliedPassword: string) {
   const suppliedHash = createHash('sha256').update(suppliedPassword).digest()
   const expectedHash = createHash('sha256').update(hostPassword).digest()
@@ -100,6 +103,7 @@ function recordFailedLogin(address: string) {
   loginAttempts.set(address, attempt)
 }
 
+/** Rate limiting is intentionally process-local while the app is restricted to one replica. */
 function isLoginRateLimited(address: string) {
   const attempt = loginAttempts.get(address)
   if (!attempt) return false
@@ -134,6 +138,7 @@ const server = Bun.serve<SocketData>({
     }
 
     if (url.pathname === '/api/network-info') {
+      // Railway's container address is private and unusable by players.
       if (!isLoopbackRequest(request, bunServer)) return new Response('Not found', { status: 404 })
       return json({ urls: getLanUrls(server.port, '/login') })
     }
@@ -203,7 +208,7 @@ const server = Bun.serve<SocketData>({
       if (await file.exists()) return new Response(file)
     }
 
-    // Vue Router handles application routes such as /login and /host.
+    // SPA fallback: Vue Router handles application routes such as /login and /host.
     const index = Bun.file(join(publicDirectory, 'index.html'))
     if (await index.exists()) return new Response(index)
 
