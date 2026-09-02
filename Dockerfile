@@ -17,7 +17,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/server.ts /app/lan.ts ./
+COPY --from=build /app/server.ts /app/lan.ts /app/room-session.ts ./
 
 EXPOSE 8080
 USER bun
