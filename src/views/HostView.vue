@@ -13,6 +13,7 @@ const isSigningIn = ref(false)
 const hostAccessConfigured = ref(true)
 const roomCode = ref('')
 const players = ref<Array<{ id: string; name: string }>>([])
+const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
 let playersPoll: ReturnType<typeof setInterval> | undefined
 
@@ -99,6 +100,11 @@ async function refreshPlayers() {
   if (!response.ok) return
   const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }> } }
   players.value = data.room.players
+  const guessesResponse = await fetch(`/api/rooms/${roomCode.value}/guesses?role=host`)
+  if (guessesResponse.ok) {
+    const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
+    guesses.value = guessesData.guesses
+  }
 }
 
 /** Exchanges the entered host password for an HTTP-only session cookie. */
@@ -192,6 +198,13 @@ onBeforeUnmount(() => {
             <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
             <span v-if="!players.length">Waiting for players…</span>
             <span v-for="player in players" :key="player.id">{{ player.name }}</span>
+          </div>
+          <div class="guess-list host-guesses" aria-live="polite">
+            <strong>Player guesses</strong>
+            <span v-if="!guesses.length" class="empty-state">No guesses yet.</span>
+            <span v-for="item in guesses" :key="item.id" class="guess-item">
+              <b>{{ item.playerName }}</b>: {{ item.text }}
+            </span>
           </div>
         </template>
 

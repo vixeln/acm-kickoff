@@ -19,7 +19,7 @@ and active WebSocket connections therefore belong to one Bun process.
 | Path | Responsibility |
 | --- | --- |
 | `server.ts` | HTTP routing, host authentication, room API, static files, health check, and WebSockets |
-| `room-session.ts` | In-memory room creation, lookup, and player membership |
+| `room-session.ts` | In-memory room creation, lookup, player membership, and guesses |
 | `lan.ts` | Discovers and ranks usable local IPv4 addresses |
 | `src/main.ts` | Creates and mounts the Vue application |
 | `src/router.ts` | Selects the host/player entry route and defines client routes |
@@ -75,6 +75,9 @@ All authentication responses include `Cache-Control: no-store`.
 | `POST` | `/api/rooms` | Host cookie | Creates a four-character room |
 | `GET` | `/api/rooms/:code` | None | Returns the room and current players |
 | `POST` | `/api/rooms/:code/players` | None | Adds a named player to the room |
+| `GET` | `/api/rooms/:code/guesses?player=:id&token=:token` | Player token | Returns only that player's guesses |
+| `POST` | `/api/rooms/:code/guesses` | Player token in JSON | Adds a word guess for the authenticated player |
+| `GET` | `/api/rooms/:code/guesses?role=host` | Host cookie | Returns all player guesses |
 | `GET` | `/ws` | Host cookie for `role=host` | Upgrades to a WebSocket connection |
 
 Host login request:
@@ -129,9 +132,11 @@ of VPN adapters.
 
 After host authentication, `HostView.vue` creates a room and displays its code in the QR URL.
 `LoginView.vue` submits the player name to the room API and only navigates to `/play` after the
-server confirms the room exists and the player has been added. The host polls the room every two
-seconds so the waiting list reflects joins. Room codes and player names are validated on the
-server, and room membership is process-local.
+server confirms the room exists and the player has been added. The host polls the room and the
+all-guesses feed every two seconds so the waiting list and guesses stay current. Players poll a
+player-scoped feed and submit guesses with a private per-join token, so another player cannot read
+their guesses. Room codes, player names, and guess text are validated on the server, and all room
+state is process-local.
 
 ## WebSockets
 

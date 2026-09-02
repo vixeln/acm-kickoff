@@ -230,6 +230,54 @@ button:disabled {
   text-decoration: underline;
 }
 
+.guess-form {
+  display: grid;
+  gap: 10px;
+}
+
+.guess-entry {
+  display: flex;
+  gap: 8px;
+}
+
+.guess-entry input {
+  min-width: 0;
+}
+
+.guess-entry button {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.guess-list {
+  display: grid;
+  gap: 8px;
+  margin: 22px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f7f4ee;
+}
+
+.guess-list strong {
+  color: #202124;
+}
+
+.guess-item {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: white;
+  color: #34363a;
+  overflow-wrap: anywhere;
+}
+
+.empty-state {
+  color: #85878b;
+}
+
+.host-guesses {
+  text-align: left;
+}
+
 @media (max-width: 520px) {
   .page-shell {
     padding: 14px;

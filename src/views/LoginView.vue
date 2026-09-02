@@ -27,12 +27,12 @@ async function join() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: playerName }),
     })
-    const data = (await response.json()) as { player?: { id: string }; error?: string }
+    const data = (await response.json()) as { player?: { id: string; token: string }; error?: string }
     if (!response.ok || !data.player) {
       errorMessage.value = data.error ?? 'Could not join that room.'
       return
     }
-    router.push({ name: 'play', query: { name: playerName, room: code, player: data.player.id } })
+    router.push({ name: 'play', query: { name: playerName, room: code, player: data.player.id, token: data.player.token } })
   } catch (error) {
     console.error(error)
     errorMessage.value = 'Could not reach the server. Try again.'

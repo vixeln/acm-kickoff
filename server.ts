@@ -2,7 +2,15 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { join, normalize, sep } from 'node:path'
 
 import { getLanUrls } from './lan'
-import { createRoom, getRoom, joinRoom, removePlayer } from './room-session'
+import {
+  addGuess,
+  createRoom,
+  getAllGuesses,
+  getPlayerGuesses,
+  getRoom,
+  joinRoom,
+  removePlayer,
+} from './room-session'
 
 type SocketData = {
   playerId?: string
@@ -258,6 +266,41 @@ const server = Bun.serve<SocketData>({
       return 'error' in result
         ? json({ error: result.error }, { status: 404 })
         : json({ player: result.player, room: result.room }, { status: 201 })
+    }
+
+    const guessesMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/guesses$/i)
+    if (guessesMatch && request.method === 'GET') {
+      const code = guessesMatch[1]
+      if (url.searchParams.get('role') === 'host') {
+        if (!isHostAuthorized(request, bunServer)) {
+          return json({ error: 'Host authentication required.' }, { status: 401 })
+        }
+        const guesses = getAllGuesses(code)
+        return guesses ? json({ guesses }) : json({ error: 'That room does not exist.' }, { status: 404 })
+      }
+
+      const guesses = getPlayerGuesses(
+        code,
+        url.searchParams.get('player') ?? '',
+        url.searchParams.get('token') ?? '',
+      )
+      return guesses ? json({ guesses }) : json({ error: 'That player is not in the room.' }, { status: 403 })
+    }
+
+    if (guessesMatch && request.method === 'POST') {
+      let playerId = ''
+      let token = ''
+      let text = ''
+      try {
+        const body = (await request.json()) as { playerId?: unknown; token?: unknown; text?: unknown }
+        if (typeof body.playerId === 'string') playerId = body.playerId
+        if (typeof body.token === 'string') token = body.token
+        if (typeof body.text === 'string') text = body.text
+      } catch {
+        return json({ error: 'Invalid request.' }, { status: 400 })
+      }
+      const result = addGuess(guessesMatch[1], playerId, token, text)
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result, { status: 201 })
     }
 
     if (url.pathname === '/ws') {
