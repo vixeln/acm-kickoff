@@ -2,11 +2,13 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { join, normalize, sep } from 'node:path'
 
 import { getLanUrls } from './lan'
+import { createRoom, getRoom, joinRoom, removePlayer } from './room-session'
 
 type SocketData = {
   playerId?: string
   sessionId?: string
   role?: 'host' | 'player'
+  roomCode?: string
 }
 
 type LoginAttempt = {
@@ -28,11 +30,18 @@ if (Bun.env.RAILWAY_ENVIRONMENT_ID && !hostPassword) {
   console.warn('HOST_PASSWORD is not configured; public host access will remain locked.')
 }
 
+/**
+ * Identifies requests originating on the server itself.
+ *
+ * Loopback is the trust boundary for passwordless local hosting and LAN-address discovery.
+ * Proxy headers are deliberately ignored because callers can forge them outside Railway.
+ */
 function isLoopbackRequest(request: Request, bunServer: Bun.Server<SocketData>) {
   const address = bunServer.requestIP(request)?.address
   return address === '127.0.0.1' || address === '::1'
 }
 
+/** Extracts one named value from the request's Cookie header. */
 function getCookie(request: Request, name: string) {
   const prefix = `${name}=`
   return request.headers
@@ -43,12 +52,21 @@ function getCookie(request: Request, name: string) {
     ?.slice(prefix.length)
 }
 
+/**
+ * Creates the stateless host-session token stored in the host cookie.
+ *
+ * Only the expiration timestamp is exposed; its HMAC prevents clients from extending it.
+ */
 function signHostSession(expiresAt: number) {
   const signature = createHmac('sha256', hostSessionSecret).update(String(expiresAt)).digest('hex')
   return `${expiresAt}.${signature}`
 }
 
-/** Verifies the stateless host cookie without storing server-side session records. */
+/**
+ * Verifies the stateless host cookie without storing server-side session records.
+ *
+ * A fixed-length, timing-safe signature comparison avoids leaking useful comparison timing.
+ */
 function hasValidHostSession(request: Request) {
   if (!hostSessionSecret) return false
 
@@ -71,19 +89,30 @@ function hasValidHostSession(request: Request) {
   )
 }
 
-/** Localhost stays convenient; every non-loopback host must present a signed session. */
+/**
+ * Applies the host authorization policy shared by HTTP and WebSocket requests.
+ *
+ * Localhost stays passwordless when no password is configured. Once a password exists, every
+ * host—including localhost—must present a valid signed session.
+ */
 function isHostAuthorized(request: Request, bunServer: Bun.Server<SocketData>) {
   if (!hostPassword) return isLoopbackRequest(request, bunServer)
   return hasValidHostSession(request)
 }
 
-/** Hashing both values gives timingSafeEqual fixed-size inputs. */
+/** Compares passwords as fixed-size hashes so timingSafeEqual can be used safely. */
 function passwordsMatch(suppliedPassword: string) {
   const suppliedHash = createHash('sha256').update(suppliedPassword).digest()
   const expectedHash = createHash('sha256').update(hostPassword).digest()
   return timingSafeEqual(suppliedHash, expectedHash)
 }
 
+/**
+ * Selects the client identifier used by the login throttle.
+ *
+ * Railway terminates public traffic at a proxy, so its forwarded address takes precedence over
+ * Bun's socket peer address. The value is used only for rate limiting, never authentication.
+ */
 function getClientAddress(request: Request, bunServer: Bun.Server<SocketData>) {
   return (
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -92,6 +121,7 @@ function getClientAddress(request: Request, bunServer: Bun.Server<SocketData>) {
   )
 }
 
+/** Records a failed login in the current process's fixed 15-minute attempt window. */
 function recordFailedLogin(address: string) {
   const now = Date.now()
   const current = loginAttempts.get(address)
@@ -103,7 +133,11 @@ function recordFailedLogin(address: string) {
   loginAttempts.set(address, attempt)
 }
 
-/** Rate limiting is intentionally process-local while the app is restricted to one replica. */
+/**
+ * Reports whether an address exhausted its login attempts.
+ *
+ * Rate limiting is intentionally process-local while the app is restricted to one replica.
+ */
 function isLoginRateLimited(address: string) {
   const attempt = loginAttempts.get(address)
   if (!attempt) return false
@@ -114,12 +148,19 @@ function isLoginRateLimited(address: string) {
   return attempt.attempts >= maximumLoginAttempts
 }
 
+/**
+ * Serializes the host session cookie with production-safe browser restrictions.
+ *
+ * Railway handles TLS before forwarding the request, so X-Forwarded-Proto determines whether
+ * the Secure attribute is required. Local HTTP development remains usable without it.
+ */
 function hostCookie(request: Request, token: string, maxAge = hostSessionDurationSeconds) {
   const forwardedProtocol = request.headers.get('x-forwarded-proto')
   const secure = forwardedProtocol === 'https' || new URL(request.url).protocol === 'https:'
   return `draw_host=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
 }
 
+/** Creates a JSON response that browsers and intermediaries must not cache. */
 function json(data: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers)
   headers.set('Cache-Control', 'no-store')
@@ -130,6 +171,7 @@ const server = Bun.serve<SocketData>({
   hostname: '0.0.0.0',
   port,
 
+  /** Routes API, WebSocket, static-asset, and Vue history-fallback requests. */
   async fetch(request, bunServer) {
     const url = new URL(request.url)
 
@@ -188,6 +230,36 @@ const server = Bun.serve<SocketData>({
       )
     }
 
+    if (url.pathname === '/api/rooms' && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      return json({ room: createRoom() }, { status: 201 })
+    }
+
+    const roomMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
+    if (roomMatch && request.method === 'GET') {
+      const room = getRoom(roomMatch[1])
+      return room
+        ? json({ room })
+        : json({ error: 'That room does not exist.' }, { status: 404 })
+    }
+
+    const joinMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/players$/i)
+    if (joinMatch && request.method === 'POST') {
+      let name = ''
+      try {
+        const body = (await request.json()) as { name?: unknown }
+        if (typeof body.name === 'string') name = body.name
+      } catch {
+        return json({ error: 'Invalid request.' }, { status: 400 })
+      }
+      const result = joinRoom(joinMatch[1], name)
+      return 'error' in result
+        ? json({ error: result.error }, { status: 404 })
+        : json({ player: result.player, room: result.room }, { status: 201 })
+    }
+
     if (url.pathname === '/ws') {
       const wantsHostRole = url.searchParams.get('role') === 'host'
       if (wantsHostRole && !isHostAuthorized(request, bunServer)) {
@@ -216,13 +288,17 @@ const server = Bun.serve<SocketData>({
   },
 
   websocket: {
+    /** WebSockets are available for future real-time game events; room entry uses HTTP for now. */
     open(socket) {
       console.log('connected', socket.data)
     },
-    message(_socket, message) {
+    message(socket, message) {
       console.log('message:', message)
     },
-    close() {
+    close(socket) {
+      if (socket.data.role === 'player' && socket.data.roomCode && socket.data.playerId) {
+        removePlayer(socket.data.roomCode, socket.data.playerId)
+      }
       console.log('disconnected')
     },
   },

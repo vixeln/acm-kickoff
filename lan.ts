@@ -1,5 +1,6 @@
 import { networkInterfaces } from 'node:os'
 
+/** Reports whether an IPv4 address belongs to one of the RFC 1918 private ranges. */
 function isPrivateIPv4(address: string) {
   const octets = address.split('.').map(Number)
 
@@ -10,7 +11,13 @@ function isPrivateIPv4(address: string) {
   )
 }
 
-/** Returns unique LAN URLs ordered by their likelihood of being reachable by another device. */
+/**
+ * Builds LAN URLs ordered by their likelihood of being reachable from another device.
+ *
+ * Private addresses are preferred over other non-loopback addresses, then common physical
+ * adapter names are preferred over VPN and virtual interfaces. Multiple URLs are retained as a
+ * fallback because a machine can legitimately have more than one usable network connection.
+ */
 export function getLanUrls(port: number, path = '') {
   const addresses = Object.entries(networkInterfaces())
     .flatMap(([interfaceName, entries]) =>

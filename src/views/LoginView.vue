@@ -1,18 +1,44 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const name = ref('')
 const roomCode = ref('')
+const errorMessage = ref('')
+const isJoining = ref(false)
 
-function join() {
+onMounted(() => {
+  roomCode.value = String(router.currentRoute.value.query.room ?? '').toUpperCase()
+})
+
+/** Validates and normalizes player input before entering the local joined-state route. */
+async function join() {
   const playerName = name.value.trim()
   const code = roomCode.value.trim().toUpperCase()
 
   if (!playerName || !code) return
 
-  router.push({ name: 'play', query: { name: playerName, room: code } })
+  errorMessage.value = ''
+  isJoining.value = true
+  try {
+    const response = await fetch(`/api/rooms/${encodeURIComponent(code)}/players`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: playerName }),
+    })
+    const data = (await response.json()) as { player?: { id: string }; error?: string }
+    if (!response.ok || !data.player) {
+      errorMessage.value = data.error ?? 'Could not join that room.'
+      return
+    }
+    router.push({ name: 'play', query: { name: playerName, room: code, player: data.player.id } })
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = 'Could not reach the server. Try again.'
+  } finally {
+    isJoining.value = false
+  }
 }
 </script>
 
@@ -49,9 +75,12 @@ function join() {
           required
         />
 
-        <button type="submit">Join room</button>
+        <button type="submit" :disabled="isJoining">
+          {{ isJoining ? 'Joining…' : 'Join room' }}
+        </button>
       </form>
 
+      <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
       <p class="fine-print">Ask the host for the room code shown on their screen.</p>
     </section>
   </main>

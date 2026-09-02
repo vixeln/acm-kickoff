@@ -18,7 +18,8 @@ and active WebSocket connections therefore belong to one Bun process.
 
 | Path | Responsibility |
 | --- | --- |
-| `server.ts` | HTTP routing, host authentication, static files, health check, and WebSockets |
+| `server.ts` | HTTP routing, host authentication, room API, static files, health check, and WebSockets |
+| `room-session.ts` | In-memory room creation, lookup, and player membership |
 | `lan.ts` | Discovers and ranks usable local IPv4 addresses |
 | `src/main.ts` | Creates and mounts the Vue application |
 | `src/router.ts` | Selects the host/player entry route and defines client routes |
@@ -71,6 +72,9 @@ All authentication responses include `Cache-Control: no-store`.
 | `GET` | `/api/host/status` | Optional cookie | Reports `authenticated` and `configured` |
 | `POST` | `/api/host/login` | Password in JSON | Creates a signed host session cookie |
 | `POST` | `/api/host/logout` | None | Expires the host session cookie |
+| `POST` | `/api/rooms` | Host cookie | Creates a four-character room |
+| `GET` | `/api/rooms/:code` | None | Returns the room and current players |
+| `POST` | `/api/rooms/:code/players` | None | Adds a named player to the room |
 | `GET` | `/ws` | Host cookie for `role=host` | Upgrades to a WebSocket connection |
 
 Host login request:
@@ -120,6 +124,14 @@ view remains locked and the server writes a configuration warning to the runtime
 `lan.ts` considers non-internal IPv4 interfaces. Private address ranges are preferred, then
 common physical interface names such as `en`, `eth`, and `wlan`, which generally rank ahead
 of VPN adapters.
+
+## Room sessions
+
+After host authentication, `HostView.vue` creates a room and displays its code in the QR URL.
+`LoginView.vue` submits the player name to the room API and only navigates to `/play` after the
+server confirms the room exists and the player has been added. The host polls the room every two
+seconds so the waiting list reflects joins. Room codes and player names are validated on the
+server, and room membership is process-local.
 
 ## WebSockets
 

@@ -4,6 +4,12 @@ import HostView from './views/HostView.vue'
 import LoginView from './views/LoginView.vue'
 import PlayView from './views/PlayView.vue'
 
+/**
+ * Determines the default landing experience from the browser-visible hostname.
+ *
+ * A host opening localhost goes directly to its controls. Every remotely addressed browser is
+ * treated as a player by default, while authenticated hosts can still navigate to `/host`.
+ */
 function isHostDevice() {
   return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
 }

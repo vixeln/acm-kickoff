@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const connectionAddress = ref('')
 const qrCode = ref('')
@@ -11,14 +11,23 @@ const isAuthenticated = ref(false)
 const isCheckingAuthentication = ref(true)
 const isSigningIn = ref(false)
 const hostAccessConfigured = ref(true)
+const roomCode = ref('')
+const players = ref<Array<{ id: string; name: string }>>([])
+const isStartingRoom = ref(false)
+let playersPoll: ReturnType<typeof setInterval> | undefined
 
 const isLoopbackHost = computed(() =>
   ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname),
 )
 
+/**
+ * Chooses a player-reachable login URL and renders it as a QR data URL.
+ *
+ * Localhost cannot itself be opened by another device, so local hosting asks the server for a
+ * LAN address. Railway and other remote deployments can safely reuse the browser's public origin.
+ */
 async function loadConnectionAddress() {
   try {
-    // Public deployments use their HTTPS origin; localhost asks Bun/Vite for a reachable LAN IP.
     let address = `${window.location.origin}/login`
 
     if (isLoopbackHost.value) {
@@ -30,8 +39,8 @@ async function loadConnectionAddress() {
       address = data.urls[0]
     }
 
-    connectionAddress.value = address
-    qrCode.value = await QRCode.toDataURL(address, {
+    connectionAddress.value = `${address}?room=${roomCode.value}`
+    qrCode.value = await QRCode.toDataURL(connectionAddress.value, {
       errorCorrectionLevel: 'M',
       margin: 2,
       width: 280,
@@ -45,6 +54,7 @@ async function loadConnectionAddress() {
   }
 }
 
+/** Restores an existing host session before deciding whether to show the login form. */
 async function checkAuthentication() {
   try {
     const response = await fetch('/api/host/status')
@@ -53,7 +63,9 @@ async function checkAuthentication() {
     const data = (await response.json()) as { authenticated: boolean; configured: boolean }
     isAuthenticated.value = data.authenticated
     hostAccessConfigured.value = data.configured
-    if (data.authenticated) await loadConnectionAddress()
+    if (data.authenticated) {
+      await startRoom()
+    }
   } catch (error) {
     console.error(error)
     authenticationError.value = 'Could not check host access. Try refreshing the page.'
@@ -62,6 +74,34 @@ async function checkAuthentication() {
   }
 }
 
+async function startRoom() {
+  isStartingRoom.value = true
+  errorMessage.value = ''
+  try {
+    const response = await fetch('/api/rooms', { method: 'POST' })
+    const data = (await response.json()) as { room?: { code: string }; error?: string }
+    if (!response.ok || !data.room) throw new Error(data.error ?? 'Could not start a room.')
+    roomCode.value = data.room.code
+    await loadConnectionAddress()
+    await refreshPlayers()
+    playersPoll = setInterval(refreshPlayers, 2000)
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = 'Could not start a room. Try refreshing the page.'
+  } finally {
+    isStartingRoom.value = false
+  }
+}
+
+async function refreshPlayers() {
+  if (!roomCode.value) return
+  const response = await fetch(`/api/rooms/${roomCode.value}`)
+  if (!response.ok) return
+  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }> } }
+  players.value = data.room.players
+}
+
+/** Exchanges the entered host password for an HTTP-only session cookie. */
 async function signIn() {
   authenticationError.value = ''
   isSigningIn.value = true
@@ -80,7 +120,7 @@ async function signIn() {
 
     password.value = ''
     isAuthenticated.value = true
-    await loadConnectionAddress()
+    await startRoom()
   } catch (error) {
     console.error(error)
     authenticationError.value = 'Could not reach the server. Try again.'
@@ -90,6 +130,9 @@ async function signIn() {
 }
 
 onMounted(checkAuthentication)
+onBeforeUnmount(() => {
+  if (playersPoll) clearInterval(playersPoll)
+})
 </script>
 
 <template>
@@ -131,10 +174,10 @@ onMounted(checkAuthentication)
       </template>
 
       <template v-else>
-        <h1 id="host-title">Ready for players</h1>
+        <h1 id="host-title">Room {{ roomCode || 'starting…' }}</h1>
         <p class="subtitle">Scan this code on another device to join the game.</p>
 
-        <template v-if="qrCode">
+        <template v-if="qrCode && roomCode">
           <div class="qr-code">
             <img
               :src="qrCode"
@@ -145,6 +188,11 @@ onMounted(checkAuthentication)
           </div>
           <div class="address">{{ connectionAddress }}</div>
           <p class="fine-print">Players can scan the code or enter the address in a browser.</p>
+          <div class="player-list" aria-live="polite">
+            <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
+            <span v-if="!players.length">Waiting for players…</span>
+            <span v-for="player in players" :key="player.id">{{ player.name }}</span>
+          </div>
         </template>
 
         <p v-else-if="errorMessage" class="network-error" role="alert">{{ errorMessage }}</p>

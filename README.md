@@ -99,6 +99,7 @@ the application service and current Railway environment, then deploy the staged 
 
 ## Current scope
 
-The repository currently provides routing, player entry UI, host authentication, QR joining,
-static serving, and a WebSocket upgrade endpoint. The room lifecycle and game message
-protocol are not implemented yet; WebSocket messages are only logged.
+The repository provides routing, player entry UI, host authentication, QR joining, room creation,
+server-side room membership, a host player list, static serving, and a WebSocket upgrade endpoint.
+Room state is held in memory by the Bun process, so keep Railway at one replica. The real-time game
+message protocol is still open for the gameplay implementation.

@@ -163,6 +163,21 @@ button:disabled {
   text-align: center;
 }
 
+.player-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f7f4ee;
+  color: #65676b;
+  text-align: center;
+}
+
+.player-list strong {
+  color: #202124;
+}
+
 .qr-code {
   display: grid;
   margin-bottom: 18px;
