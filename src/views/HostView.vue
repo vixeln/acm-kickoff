@@ -12,6 +12,9 @@ const isCheckingAuthentication = ref(true)
 const isSigningIn = ref(false)
 const hostAccessConfigured = ref(true)
 const roomCode = ref('')
+const secretWord = ref('')
+const savedSecretWord = ref('')
+const isSavingSecretWord = ref(false)
 const players = ref<Array<{ id: string; name: string }>>([])
 const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
@@ -100,10 +103,37 @@ async function refreshPlayers() {
   if (!response.ok) return
   const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }> } }
   players.value = data.room.players
+  const hostStateResponse = await fetch(`/api/rooms/${roomCode.value}/host-state`)
+  if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'secret-word') {
+    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string } }
+    secretWord.value = hostState.room.secretWord
+    savedSecretWord.value = hostState.room.secretWord
+  }
   const guessesResponse = await fetch(`/api/rooms/${roomCode.value}/guesses?role=host`)
   if (guessesResponse.ok) {
     const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
     guesses.value = guessesData.guesses
+  }
+}
+
+async function saveSecretWord() {
+  // Do not send the request unless a room is active and the word contains non-whitespace text.
+  if (!roomCode.value || !secretWord.value.trim()) return
+  isSavingSecretWord.value = true
+  errorMessage.value = ''
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/secret-word`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secretWord: secretWord.value }),
+    })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not save the word.')
+    savedSecretWord.value = secretWord.value.trim()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not save the word.'
+  } finally {
+    isSavingSecretWord.value = false
   }
 }
 
@@ -194,6 +224,19 @@ onBeforeUnmount(() => {
           </div>
           <div class="address">{{ connectionAddress }}</div>
           <p class="fine-print">Players can scan the code or enter the address in a browser.</p>
+          <form class="secret-word-form" @submit.prevent="saveSecretWord">
+            <label for="secret-word">Word to draw</label>
+            <div class="guess-entry">
+              <input id="secret-word" v-model="secretWord" maxlength="80" placeholder="Enter the secret word" required />
+              <button type="submit" :disabled="isSavingSecretWord">
+                {{ isSavingSecretWord ? 'Saving…' : 'Save word' }}
+              </button>
+            </div>
+            <p v-if="savedSecretWord" class="saved-word">Private word: {{ savedSecretWord }}</p>
+          </form>
+          <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">
+            Open projector view ↗
+          </a>
           <div class="player-list" aria-live="polite">
             <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
             <span v-if="!players.length">Waiting for players…</span>

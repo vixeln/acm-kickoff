@@ -6,10 +6,12 @@ import {
   addGuess,
   createRoom,
   getAllGuesses,
+  getHostRoom,
   getPlayerGuesses,
   getRoom,
   joinRoom,
   removePlayer,
+  setSecretWord,
 } from './room-session'
 
 type SocketData = {
@@ -251,6 +253,35 @@ const server = Bun.serve<SocketData>({
       return room
         ? json({ room })
         : json({ error: 'That room does not exist.' }, { status: 404 })
+    }
+
+    const hostStateMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/host-state$/i)
+    if (hostStateMatch && request.method === 'GET') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      const room = getHostRoom(hostStateMatch[1])
+      return room
+        ? json({ room })
+        : json({ error: 'That room does not exist.' }, { status: 404 })
+    }
+
+    const secretWordMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/secret-word$/i)
+    if (secretWordMatch && request.method === 'PUT') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      let secretWord = ''
+      try {
+        const body = (await request.json()) as { secretWord?: unknown }
+        if (typeof body.secretWord === 'string') secretWord = body.secretWord
+      } catch {
+        return json({ error: 'Invalid request.' }, { status: 400 })
+      }
+      const result = setSecretWord(secretWordMatch[1], secretWord)
+      return 'error' in result
+        ? json({ error: result.error }, { status: 400 })
+        : json(result)
     }
 
     const joinMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/players$/i)

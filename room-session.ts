@@ -18,6 +18,7 @@ export type Guess = {
 export type Room = {
   code: string
   createdAt: number
+  secretWord: string
   players: Map<string, RoomPlayer>
   guesses: Guess[]
 }
@@ -36,7 +37,7 @@ function publicRoom(room: Room) {
   }
 }
 
-export function createRoom() {
+export function createRoom(secretWord = '') {
   let code = ''
   do {
     code = Array.from({ length: 4 }, () =>
@@ -44,9 +45,30 @@ export function createRoom() {
     ).join('')
   } while (rooms.has(code))
 
-  const room: Room = { code, createdAt: Date.now(), players: new Map(), guesses: [] }
+  const room: Room = {
+    code,
+    createdAt: Date.now(),
+    secretWord: secretWord.trim(),
+    players: new Map(),
+    guesses: [],
+  }
   rooms.set(code, room)
   return publicRoom(room)
+}
+
+export function setSecretWord(code: string, secretWord: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  const word = secretWord.trim()
+  if (!word) return { error: 'Enter a word to draw.' as const }
+  if (word.length > 80) return { error: 'Words must be 80 characters or fewer.' as const }
+  room.secretWord = word
+  return { room: publicRoom(room) }
+}
+
+export function getHostRoom(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  return room ? { ...publicRoom(room), secretWord: room.secretWord } : null
 }
 
 export function getRoom(code: string) {

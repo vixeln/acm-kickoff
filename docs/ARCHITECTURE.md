@@ -23,7 +23,8 @@ and active WebSocket connections therefore belong to one Bun process.
 | `lan.ts` | Discovers and ranks usable local IPv4 addresses |
 | `src/main.ts` | Creates and mounts the Vue application |
 | `src/router.ts` | Selects the host/player entry route and defines client routes |
-| `src/views/HostView.vue` | Host login, connection URL selection, and QR generation |
+| `src/views/HostView.vue` | Host login, private word controls, connection URL selection, and QR generation |
+| `src/views/DisplayView.vue` | Projector/audience view that deliberately omits the secret word |
 | `src/views/LoginView.vue` | Collects player name and room code |
 | `src/views/PlayView.vue` | Displays the player's joined state |
 | `src/styles.css` | Shared application presentation |
@@ -74,6 +75,8 @@ All authentication responses include `Cache-Control: no-store`.
 | `POST` | `/api/host/logout` | None | Expires the host session cookie |
 | `POST` | `/api/rooms` | Host cookie | Creates a four-character room |
 | `GET` | `/api/rooms/:code` | None | Returns the room and current players |
+| `GET` | `/api/rooms/:code/host-state` | Host cookie | Returns the room including the secret word |
+| `PUT` | `/api/rooms/:code/secret-word` | Host cookie | Sets the private word to draw |
 | `POST` | `/api/rooms/:code/players` | None | Adds a named player to the room |
 | `GET` | `/api/rooms/:code/guesses?player=:id&token=:token` | Player token | Returns only that player's guesses |
 | `POST` | `/api/rooms/:code/guesses` | Player token in JSON | Adds a word guess for the authenticated player |
@@ -133,10 +136,43 @@ of VPN adapters.
 After host authentication, `HostView.vue` creates a room and displays its code in the QR URL.
 `LoginView.vue` submits the player name to the room API and only navigates to `/play` after the
 server confirms the room exists and the player has been added. The host polls the room and the
-all-guesses feed every two seconds so the waiting list and guesses stay current. Players poll a
-player-scoped feed and submit guesses with a private per-join token, so another player cannot read
-their guesses. Room codes, player names, and guess text are validated on the server, and all room
-state is process-local.
+all-guesses feed every two seconds so the waiting list and guesses stay current. The projector
+view polls the public room endpoint every two seconds so its player count stays current. Players
+poll a player-scoped guesses feed every second so their own submitted guesses appear without
+exposing them to other players. All polling stops when the corresponding Vue view is unmounted.
+
+### Room polling
+
+Polling is the current lightweight synchronization mechanism for room state. A view makes a
+normal HTTP request at a fixed interval, replaces its local reactive state with the response, and
+renders the latest result. It is used for UI freshness, not authentication: every protected
+request is still authorized by the server, and the public room response intentionally omits the
+secret word.
+
+| View | Endpoint | Interval | Purpose |
+| --- | --- | --- | --- |
+| Host | `GET /api/rooms/:code` | 2 seconds | Refresh the player list |
+| Host | `GET /api/rooms/:code/host-state` | 2 seconds | Restore the private word after refresh |
+| Host | `GET /api/rooms/:code/guesses?role=host` | 2 seconds | Show all player guesses |
+| Projector | `GET /api/rooms/:code` | 2 seconds | Show the current audience/player count |
+| Player | `GET /api/rooms/:code/guesses?player=:id&token=:token` | 1 second | Show that player's own guesses |
+
+The requests are intentionally scoped by role. The host may receive the secret word and all
+guesses, the projector receives only public room information, and a player receives only their
+own guesses. Failed polling requests are ignored or shown as a room error depending on the view;
+the next interval retries automatically. This makes the app simple to deploy, but it creates
+repeated HTTP traffic and can make updates appear up to one polling interval late. As drawing and
+timers become real-time gameplay, replace or supplement polling with authenticated WebSocket
+messages and keep the same server-side response separation.
+
+Players poll a player-scoped feed and submit guesses with a private per-join token, so another
+player cannot read them. Room codes, player names, and guess text are validated on the server, and
+all room state is process-local.
+
+The projector uses `/display/:roomCode` and only calls the public room endpoint. The secret word
+is stored in the room but omitted by `publicRoom`; only the authenticated host-state endpoint can
+return it. Use an extended desktop with the projector window moved to the second display.
+Operating-system mirroring cannot hide content because both outputs receive the same pixels.
 
 ## WebSockets
 

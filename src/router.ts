@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HostView from './views/HostView.vue'
 import LoginView from './views/LoginView.vue'
 import PlayView from './views/PlayView.vue'
+import DisplayView from './views/DisplayView.vue'
 
 /**
  * Determines the default landing experience from the browser-visible hostname.
@@ -24,6 +25,7 @@ export default createRouter({
     { path: '/login', name: 'login', component: LoginView },
     { path: '/host', name: 'host', component: HostView },
     { path: '/play', name: 'play', component: PlayView },
+    { path: '/display/:room', name: 'display', component: DisplayView },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
