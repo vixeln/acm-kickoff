@@ -15,6 +15,7 @@ const roomCode = ref('')
 const secretWord = ref('')
 const savedSecretWord = ref('')
 const isSavingSecretWord = ref(false)
+const isEndingRoom = ref(false)
 const players = ref<Array<{ id: string; name: string }>>([])
 const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
@@ -67,9 +68,6 @@ async function checkAuthentication() {
     const data = (await response.json()) as { authenticated: boolean; configured: boolean }
     isAuthenticated.value = data.authenticated
     hostAccessConfigured.value = data.configured
-    if (data.authenticated) {
-      await startRoom()
-    }
   } catch (error) {
     console.error(error)
     authenticationError.value = 'Could not check host access. Try refreshing the page.'
@@ -137,6 +135,36 @@ async function saveSecretWord() {
   }
 }
 
+async function endSession() {
+  if (!roomCode.value || isEndingRoom.value) return
+  if (!window.confirm('End this session? Players will be disconnected from the room.')) return
+
+  isEndingRoom.value = true
+  errorMessage.value = ''
+  const endedRoomCode = roomCode.value
+  try {
+    const response = await fetch(`/api/rooms/${endedRoomCode}`, { method: 'DELETE' })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not end the session.')
+    if (playersPoll) {
+      clearInterval(playersPoll)
+      playersPoll = undefined
+    }
+    roomCode.value = ''
+    connectionAddress.value = ''
+    qrCode.value = ''
+    secretWord.value = ''
+    savedSecretWord.value = ''
+    players.value = []
+    guesses.value = []
+  } catch (error) {
+    console.error(error)
+    errorMessage.value = error instanceof Error ? error.message : 'Could not end the session.'
+  } finally {
+    isEndingRoom.value = false
+  }
+}
+
 /** Exchanges the entered host password for an HTTP-only session cookie. */
 async function signIn() {
   authenticationError.value = ''
@@ -156,7 +184,6 @@ async function signIn() {
 
     password.value = ''
     isAuthenticated.value = true
-    await startRoom()
   } catch (error) {
     console.error(error)
     authenticationError.value = 'Could not reach the server. Try again.'
@@ -209,6 +236,15 @@ onBeforeUnmount(() => {
         </p>
       </template>
 
+      <template v-else-if="!roomCode">
+        <h1 id="host-title">Ready to host</h1>
+        <p class="subtitle">Start a new session when you’re ready for players to join.</p>
+        <button type="button" :disabled="isStartingRoom" @click="startRoom">
+          {{ isStartingRoom ? 'Starting session…' : 'Start new session' }}
+        </button>
+        <p v-if="errorMessage" class="network-error" role="alert">{{ errorMessage }}</p>
+      </template>
+
       <template v-else>
         <h1 id="host-title">Room {{ roomCode || 'starting…' }}</h1>
         <p class="subtitle">Scan this code on another device to join the game.</p>
@@ -237,6 +273,9 @@ onBeforeUnmount(() => {
           <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">
             Open projector view ↗
           </a>
+          <button type="button" class="end-session-button" :disabled="isEndingRoom" @click="endSession">
+            {{ isEndingRoom ? 'Ending session…' : 'End session' }}
+          </button>
           <div class="player-list" aria-live="polite">
             <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
             <span v-if="!players.length">Waiting for players…</span>

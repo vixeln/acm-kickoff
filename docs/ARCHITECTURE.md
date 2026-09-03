@@ -74,6 +74,7 @@ All authentication responses include `Cache-Control: no-store`.
 | `POST` | `/api/host/login` | Password in JSON | Creates a signed host session cookie |
 | `POST` | `/api/host/logout` | None | Expires the host session cookie |
 | `POST` | `/api/rooms` | Host cookie | Creates a four-character room |
+| `DELETE` | `/api/rooms/:code` | Host cookie | Ends and removes a room |
 | `GET` | `/api/rooms/:code` | None | Returns the room and current players |
 | `GET` | `/api/rooms/:code/host-state` | Host cookie | Returns the room including the secret word |
 | `PUT` | `/api/rooms/:code/secret-word` | Host cookie | Sets the private word to draw |
@@ -133,7 +134,9 @@ of VPN adapters.
 
 ## Room sessions
 
-After host authentication, `HostView.vue` creates a room and displays its code in the QR URL.
+After host authentication, `HostView.vue` waits for the host to click “Start new session”, then
+creates a room and displays its code in the QR URL. The host can click “End session” at any time;
+the server removes the room, invalidating its player and display URLs.
 `LoginView.vue` submits the player name to the room API and only navigates to `/play` after the
 server confirms the room exists and the player has been added. The host polls the room and the
 all-guesses feed every two seconds so the waiting list and guesses stay current. The projector

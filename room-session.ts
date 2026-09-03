@@ -76,6 +76,10 @@ export function getRoom(code: string) {
   return room ? publicRoom(room) : null
 }
 
+export function deleteRoom(code: string) {
+  return rooms.delete(normalizeRoomCode(code))
+}
+
 export function joinRoom(code: string, name: string) {
   const room = rooms.get(normalizeRoomCode(code))
   const playerName = name.trim()

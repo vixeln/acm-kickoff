@@ -6,7 +6,7 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 import { getLanUrls } from './lan.ts'
-import { addGuess, createRoom, getAllGuesses, getPlayerGuesses, getRoom, joinRoom } from './room-session.ts'
+import { addGuess, createRoom, deleteRoom, getAllGuesses, getPlayerGuesses, getRoom, joinRoom } from './room-session.ts'
 
 /**
  * Emulates the Bun endpoints required by HostView while Vite owns the development server.
@@ -47,6 +47,12 @@ function installNetworkInfoMiddleware(
 
     if (request.method === 'POST' && path === '/api/rooms') {
       send(201, { room: createRoom() })
+      return
+    }
+    const endRoomMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
+    if (request.method === 'DELETE' && endRoomMatch) {
+      const ended = deleteRoom(endRoomMatch[1])
+      send(ended ? 200 : 404, ended ? { ended: true } : { error: 'That room does not exist.' })
       return
     }
     if (request.method === 'GET' && roomMatch) {

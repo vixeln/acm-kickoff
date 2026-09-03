@@ -302,6 +302,18 @@ button:disabled {
   text-decoration: none;
 }
 
+.end-session-button {
+  width: 100%;
+  margin-top: 24px;
+  color: #a23b2a;
+  background: #fff5f2;
+  border: 1px solid #e8b8ac;
+}
+
+.end-session-button:hover {
+  background: #ffe8e1;
+}
+
 .display-shell {
   min-height: 100vh;
   padding: 40px;

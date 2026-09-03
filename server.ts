@@ -5,6 +5,7 @@ import { getLanUrls } from './lan'
 import {
   addGuess,
   createRoom,
+  deleteRoom,
   getAllGuesses,
   getHostRoom,
   getPlayerGuesses,
@@ -245,6 +246,16 @@ const server = Bun.serve<SocketData>({
         return json({ error: 'Host authentication required.' }, { status: 401 })
       }
       return json({ room: createRoom() }, { status: 201 })
+    }
+
+    const endRoomMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
+    if (endRoomMatch && request.method === 'DELETE') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      return deleteRoom(endRoomMatch[1])
+        ? json({ ended: true })
+        : json({ error: 'That room does not exist.' }, { status: 404 })
     }
 
     const roomMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
