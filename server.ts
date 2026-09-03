@@ -326,10 +326,14 @@ const server = Bun.serve<SocketData>({
         url.searchParams.get('player') ?? '',
         url.searchParams.get('token') ?? '',
       )
+      if (!getRoom(code)) return json({ error: 'That room does not exist.' }, { status: 404 })
       return guesses ? json({ guesses }) : json({ error: 'That player is not in the room.' }, { status: 403 })
     }
 
     if (guessesMatch && request.method === 'POST') {
+      if (!getRoom(guessesMatch[1])) {
+        return json({ error: 'That room does not exist.' }, { status: 404 })
+      }
       let playerId = ''
       let token = ''
       let text = ''

@@ -80,6 +80,10 @@ function installNetworkInfoMiddleware(
     if (request.method === 'GET' && guessesMatch) {
       const code = guessesMatch[1]
       const query = new URL(request.url ?? '/', 'http://localhost').searchParams
+      if (query.get('role') !== 'host' && !getRoom(code)) {
+        send(404, { error: 'That room does not exist.' })
+        return
+      }
       const guesses = query.get('role') === 'host'
         ? getAllGuesses(code)
         : getPlayerGuesses(code, query.get('player') ?? '', query.get('token') ?? '')
@@ -87,6 +91,10 @@ function installNetworkInfoMiddleware(
       return
     }
     if (request.method === 'POST' && guessesMatch) {
+      if (!getRoom(guessesMatch[1])) {
+        send(404, { error: 'That room does not exist.' })
+        return
+      }
       let body = ''
       request.on('data', (chunk: Buffer) => (body += chunk.toString()))
       request.on('end', () => {

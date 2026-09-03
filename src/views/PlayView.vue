@@ -10,14 +10,27 @@ const sessionToken = computed(() => String(route.query.token ?? ''))
 const guess = ref('')
 const guesses = ref<Array<{ id: string; text: string; createdAt: number }>>([])
 const errorMessage = ref('')
+const sessionEnded = ref(false)
 const isSending = ref(false)
 let guessesPoll: ReturnType<typeof setInterval> | undefined
+
+function markSessionEnded() {
+  sessionEnded.value = true
+  if (guessesPoll) {
+    clearInterval(guessesPoll)
+    guessesPoll = undefined
+  }
+}
 
 async function refreshGuesses() {
   if (!roomCode.value || !playerId.value || !sessionToken.value) return
   const response = await fetch(
     `/api/rooms/${encodeURIComponent(roomCode.value)}/guesses?player=${encodeURIComponent(playerId.value)}&token=${encodeURIComponent(sessionToken.value)}`,
   )
+  if (response.status === 404) {
+    markSessionEnded()
+    return
+  }
   if (!response.ok) return
   const data = (await response.json()) as { guesses: typeof guesses.value }
   guesses.value = data.guesses
@@ -35,6 +48,10 @@ async function sendGuess() {
       body: JSON.stringify({ playerId: playerId.value, token: sessionToken.value, text }),
     })
     const data = (await response.json()) as { error?: string }
+    if (response.status === 404) {
+      markSessionEnded()
+      return
+    }
     if (!response.ok) {
       errorMessage.value = data.error ?? 'Could not send your guess.'
       return
@@ -61,23 +78,29 @@ onBeforeUnmount(() => {
 <template>
   <main class="page-shell">
     <section class="card play-card" aria-labelledby="connected-title">
-      <div class="status-dot" aria-hidden="true"></div>
+      <div class="status-dot" :class="{ ended: sessionEnded }" aria-hidden="true"></div>
       <p class="eyebrow">Room {{ roomCode }}</p>
-      <h1 id="connected-title">You're in, {{ playerName }}.</h1>
-      <p class="subtitle">Send a word guess below. Only you can see your guesses.</p>
-      <form class="guess-form" @submit.prevent="sendGuess">
-        <label for="guess">Your word guess</label>
-        <div class="guess-entry">
-          <input id="guess" v-model="guess" maxlength="80" placeholder="Type a word…" required />
-          <button type="submit" :disabled="isSending">{{ isSending ? 'Sending…' : 'Guess' }}</button>
+      <template v-if="sessionEnded">
+        <h1 id="connected-title">Session ended</h1>
+        <p class="subtitle">The host has ended this drawing session. Your room is no longer available.</p>
+      </template>
+      <template v-else>
+        <h1 id="connected-title">You're in, {{ playerName }}.</h1>
+        <p class="subtitle">Send a word guess below. Only you can see your guesses.</p>
+        <form class="guess-form" @submit.prevent="sendGuess">
+          <label for="guess">Your word guess</label>
+          <div class="guess-entry">
+            <input id="guess" v-model="guess" maxlength="80" placeholder="Type a word…" required />
+            <button type="submit" :disabled="isSending">{{ isSending ? 'Sending…' : 'Guess' }}</button>
+          </div>
+        </form>
+        <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
+        <div class="guess-list" aria-live="polite">
+          <strong>Your guesses</strong>
+          <span v-if="!guesses.length" class="empty-state">No guesses yet.</span>
+          <span v-for="item in guesses" :key="item.id" class="guess-item">{{ item.text }}</span>
         </div>
-      </form>
-      <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
-      <div class="guess-list" aria-live="polite">
-        <strong>Your guesses</strong>
-        <span v-if="!guesses.length" class="empty-state">No guesses yet.</span>
-        <span v-for="item in guesses" :key="item.id" class="guess-item">{{ item.text }}</span>
-      </div>
+      </template>
       <RouterLink class="text-link" to="/login">Join a different room</RouterLink>
     </section>
   </main>

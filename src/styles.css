@@ -220,6 +220,12 @@ button:disabled {
   box-shadow: 0 0 0 8px rgb(33 140 76 / 8%);
 }
 
+.status-dot.ended {
+  border-color: #f0c5bb;
+  background: #a23b2a;
+  box-shadow: 0 0 0 8px rgb(162 59 42 / 8%);
+}
+
 .text-link {
   color: #4267d5;
   font-weight: 700;
