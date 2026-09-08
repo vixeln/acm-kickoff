@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useDrawingHistory } from '../composables/drawing/useDrawingHistory'
+import { useDrawingPointer } from '../composables/drawing/useDrawingPointer'
+import { useDrawingTools } from '../composables/drawing/useDrawingTools'
 import type { DrawingAction, Point } from '../types/drawing'
 
 const props = withDefaults(
@@ -21,28 +24,31 @@ const emit = defineEmits<{
 }>()
 
 const canvas = ref<HTMLCanvasElement>()
-const tool = ref<'brush' | 'eraser' | 'line' | 'rectangle' | 'circle' | 'fill'>('brush')
-const filled = ref(false)
-const actions = ref<DrawingAction[]>([...props.modelValue])
-const redoStack = ref<DrawingAction[]>([])
+const history = useDrawingHistory(props.modelValue)
+const { actions, redoStack } = history
 const currentColor = ref(props.color)
 const currentLineWidth = ref(props.lineWidth)
-const preview = ref<DrawingAction | null>(null)
-const isDrawing = ref(false)
-const startPoint = ref<Point | null>(null)
+const canvasWidth = computed(() => props.width)
+const canvasHeight = computed(() => props.height)
+const pointer = useDrawingPointer(canvas, canvasWidth, canvasHeight)
+const { toPixels } = pointer
+const tools = useDrawingTools({
+  canvas,
+  color: currentColor,
+  lineWidth: currentLineWidth,
+  readonly: computed(() => props.readonly),
+  pointFromEvent: pointer.pointFromEvent,
+  onCommit: (action) => commit(action),
+  onPreview: (action) => updatePreview(action),
+})
+const { tool, filled, preview } = tools
 let resizeObserver: ResizeObserver | undefined
-let actionCounter = 0
 
 function isShape(action: DrawingAction): action is Extract<DrawingAction, { start: Point; end: Point }> {
   return action.type === 'line' || action.type === 'rectangle' || action.type === 'circle'
 }
 
 const toolLabel = computed(() => tool.value.charAt(0).toUpperCase() + tool.value.slice(1))
-
-function makeId() {
-  actionCounter += 1
-  return `drawing-${Date.now()}-${actionCounter}`
-}
 
 function context() {
   return canvas.value?.getContext('2d') ?? null
@@ -57,18 +63,6 @@ function resize() {
   element.style.aspectRatio = `${props.width} / ${props.height}`
   context()?.setTransform(ratio, 0, 0, ratio, 0, 0)
   redraw()
-}
-
-function pointFromEvent(event: PointerEvent): Point {
-  const bounds = canvas.value!.getBoundingClientRect()
-  return {
-    x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
-    y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
-  }
-}
-
-function toPixels(point: Point) {
-  return { x: point.x * props.width, y: point.y * props.height }
 }
 
 function styleFor(action: DrawingAction) {
@@ -170,41 +164,6 @@ function hexToRgba(value: string) {
   return [parseInt(normalized.slice(0, 2), 16), parseInt(normalized.slice(2, 4), 16), parseInt(normalized.slice(4, 6), 16), 255]
 }
 
-function begin(event: PointerEvent) {
-  if (props.readonly) return
-  event.preventDefault()
-  canvas.value?.setPointerCapture(event.pointerId)
-  isDrawing.value = true
-  const point = pointFromEvent(event)
-  startPoint.value = point
-  if (tool.value === 'fill') {
-    commit({ id: makeId(), type: 'fill', point, color: currentColor.value })
-  } else if (tool.value === 'brush' || tool.value === 'eraser') {
-    updatePreview({ id: makeId(), type: tool.value === 'eraser' ? 'eraser' : 'stroke', points: [point], color: currentColor.value, width: currentLineWidth.value })
-  }
-}
-
-function move(event: PointerEvent) {
-  if (!isDrawing.value || !startPoint.value || tool.value === 'fill') return
-  const point = pointFromEvent(event)
-  if (tool.value === 'brush' || tool.value === 'eraser') {
-    const current = preview.value
-    if (current && (current.type === 'stroke' || current.type === 'eraser')) updatePreview({ ...current, points: [...current.points, point] })
-  } else {
-    updatePreview({ id: preview.value?.id ?? makeId(), type: tool.value, start: startPoint.value, end: point, color: currentColor.value, width: currentLineWidth.value, filled: filled.value } as DrawingAction)
-  }
-}
-
-function end(event: PointerEvent) {
-  if (!isDrawing.value) return
-  event.preventDefault()
-  canvas.value?.releasePointerCapture(event.pointerId)
-  isDrawing.value = false
-  if (preview.value) commit(preview.value)
-  startPoint.value = null
-  updatePreview(null)
-}
-
 function updatePreview(value: DrawingAction | null) {
   preview.value = value
   redraw()
@@ -212,45 +171,35 @@ function updatePreview(value: DrawingAction | null) {
 }
 
 function commit(action: DrawingAction) {
-  actions.value = [...actions.value, action]
-  redoStack.value = []
+  history.commit(action)
   emit('update:modelValue', actions.value)
   emit('change', actions.value)
   redraw()
 }
 
 function undo() {
-  const action = actions.value.at(-1)
-  if (!action) return
-  actions.value = actions.value.slice(0, -1)
-  redoStack.value = [...redoStack.value, action]
+  history.undo()
   emit('update:modelValue', actions.value)
   emit('change', actions.value)
   redraw()
 }
 
 function redo() {
-  const action = redoStack.value.at(-1)
-  if (!action) return
-  redoStack.value = redoStack.value.slice(0, -1)
-  actions.value = [...actions.value, action]
+  history.redo()
   emit('update:modelValue', actions.value)
   emit('change', actions.value)
   redraw()
 }
 
 function clear() {
-  if (!actions.value.length) return
-  redoStack.value = [...redoStack.value, ...actions.value].reverse()
-  actions.value = []
+  history.clear()
   emit('update:modelValue', actions.value)
   emit('change', actions.value)
   redraw()
 }
 
 function reset() {
-  redoStack.value = []
-  actions.value = []
+  history.reset()
   updatePreview(null)
   emit('update:modelValue', actions.value)
   emit('change', actions.value)
@@ -261,7 +210,7 @@ defineExpose({ undo, redo, clear, reset, redraw, getActions: () => actions.value
 
 watch(() => props.modelValue, (value) => {
   if (value !== actions.value) {
-    actions.value = [...(value ?? [])]
+    history.replace(value ?? [])
     redraw()
   }
 }, { deep: true })
@@ -286,6 +235,6 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
       <button type="button" :disabled="!redoStack.length" @click="redo">Redo</button>
       <button type="button" :disabled="!actions.length" @click="clear">Clear</button>
     </div>
-    <canvas ref="canvas" :aria-label="`${toolLabel} drawing canvas`" @pointerdown="begin" @pointermove="move" @pointerup="end" @pointercancel="end" />
+    <canvas ref="canvas" :aria-label="`${toolLabel} drawing canvas`" @pointerdown="tools.begin" @pointermove="tools.move" @pointerup="tools.end" @pointercancel="tools.end" />
   </div>
 </template>

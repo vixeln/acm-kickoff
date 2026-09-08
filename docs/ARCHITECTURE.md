@@ -27,6 +27,9 @@ and active WebSocket connections therefore belong to one Bun process.
 | `src/views/DisplayView.vue` | Projector/audience view that deliberately omits the secret word |
 | `src/views/LoginView.vue` | Collects player name and room code |
 | `src/views/PlayView.vue` | Displays the player's joined state |
+| `src/components/DrawingCanvas.vue` | Host drawing surface with serializable actions, tool controls, and history |
+| `src/composables/drawing/` | Drawing tool, pointer, and history composables |
+| `docs/DRAWING-CANVAS.md` | Canvas API, action model, tool behavior, and synchronization guidance |
 | `src/styles.css` | Shared application presentation |
 | `vite.config.ts` | Vite settings and local-development API middleware |
 | `Dockerfile` | Multi-stage Railway image build |
