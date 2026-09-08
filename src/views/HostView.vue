@@ -259,8 +259,8 @@ onBeforeUnmount(() => {
 <template>
   <main class="page-shell">
     <section class="card" aria-labelledby="host-title">
-      <div class="mark" aria-hidden="true">D</div>
-      <p class="eyebrow">Host device</p>
+      <div v-if="!roomCode" class="mark" aria-hidden="true">D</div>
+      <p v-if="!roomCode" class="eyebrow">Host device</p>
 
       <template v-if="isCheckingAuthentication">
         <h1 id="host-title">Checking access</h1>
@@ -304,61 +304,81 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
-        <h1 id="host-title">Room {{ roomCode || 'starting…' }}</h1>
-        <p class="subtitle">Scan this code on another device to join the game.</p>
-
         <template v-if="qrCode && roomCode">
-          <div class="qr-code">
-            <img
-              :src="qrCode"
-              alt="QR code for the player login address"
-              width="280"
-              height="280"
-            />
-          </div>
-          <div class="address">{{ connectionAddress }}</div>
-          <p class="fine-print">Players can scan the code or enter the address in a browser.</p>
-          <form class="secret-word-form" @submit.prevent="saveSecretWord">
-            <label for="secret-word">Word to draw</label>
-            <div class="guess-entry">
-              <input id="secret-word" v-model="secretWord" maxlength="80" placeholder="Enter the secret word" required />
-              <button type="submit" :disabled="isSavingSecretWord">
-                {{ isSavingSecretWord ? 'Saving…' : 'Save word' }}
-              </button>
-            </div>
-          <p v-if="savedSecretWord" class="saved-word">Private word: {{ savedSecretWord }}</p>
-          </form>
-          <div class="host-drawing">
-            <div class="drawing-heading">
-              <div>
-                <p class="eyebrow">Canvas</p>
-                <h2>Draw the clue</h2>
+          <div class="host-room">
+            <header class="host-header">
+              <div class="host-brand">
+                <div class="mark" aria-hidden="true">D</div>
+                <div>
+                  <p class="eyebrow">Host device</p>
+                  <h1 id="host-title">Draw together</h1>
+                </div>
               </div>
-              <span class="drawing-status">Ready</span>
+              <div class="room-badge">
+                <span>Room code</span>
+                <strong>{{ roomCode }}</strong>
+              </div>
+              <div class="round-setup-header">
+                <form class="secret-word-form" @submit.prevent="saveSecretWord">
+                  <label for="secret-word">Word to draw</label>
+                  <div class="header-word-entry">
+                    <input id="secret-word" v-model="secretWord" maxlength="80" placeholder="Enter a word" required />
+                    <button type="submit" :disabled="isSavingSecretWord">
+                      {{ isSavingSecretWord ? 'Saving…' : 'Save word' }}
+                    </button>
+                  </div>
+                  <p v-if="savedSecretWord" class="saved-word">Private word: {{ savedSecretWord }}</p>
+                </form>
+                <div class="header-session-actions">
+                  <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">Projector view ↗</a>
+                  <button type="button" class="end-session-button" :disabled="isEndingRoom" @click="endSession">
+                    {{ isEndingRoom ? 'Ending…' : 'End session' }}
+                  </button>
+                </div>
+              </div>
+              <div class="join-card">
+                <img :src="qrCode" alt="QR code for the player login address" width="72" height="72" />
+                <div>
+                  <strong>Join the game</strong>
+                  <span>Scan to play on your phone</span>
+                </div>
+              </div>
+            </header>
+
+            <div class="host-body">
+              <aside class="host-panel guesses-panel" aria-label="Chat and player guesses">
+                <div class="panel-heading">
+                  <div>
+                    <span class="panel-kicker">Live chat</span>
+                    <h2>Guesses</h2>
+                  </div>
+                  <span class="count-badge">{{ guesses.length }}</span>
+                </div>
+                <div class="guess-list host-guesses" aria-live="polite">
+                  <span v-if="!guesses.length" class="empty-state">Guesses will appear here.</span>
+                  <span v-for="item in guesses" :key="item.id" class="guess-item">
+                    <b>{{ item.playerName }}</b><br />{{ item.text }}
+                  </span>
+                </div>
+                <div class="player-list" aria-live="polite">
+                  <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
+                  <span v-if="!players.length">Waiting for players…</span>
+                  <span v-for="player in players" :key="player.id">{{ player.name }}</span>
+                </div>
+              </aside>
+
+              <section class="host-drawing" aria-label="Drawing area">
+                <div class="drawing-heading">
+                  <div>
+                    <p class="eyebrow">Canvas</p>
+                    <h2>Draw the clue</h2>
+                  </div>
+                  <span class="drawing-status"><i></i> Ready</span>
+                </div>
+                <DrawingCanvas v-model="drawingActions" @change="drawingChanged" @preview="drawingPreviewChanged" />
+              </section>
+
             </div>
-            <DrawingCanvas
-              v-model="drawingActions"
-              @change="drawingChanged"
-              @preview="drawingPreviewChanged"
-            />
-          </div>
-          <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">
-            Open projector view ↗
-          </a>
-          <button type="button" class="end-session-button" :disabled="isEndingRoom" @click="endSession">
-            {{ isEndingRoom ? 'Ending session…' : 'End session' }}
-          </button>
-          <div class="player-list" aria-live="polite">
-            <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
-            <span v-if="!players.length">Waiting for players…</span>
-            <span v-for="player in players" :key="player.id">{{ player.name }}</span>
-          </div>
-          <div class="guess-list host-guesses" aria-live="polite">
-            <strong>Player guesses</strong>
-            <span v-if="!guesses.length" class="empty-state">No guesses yet.</span>
-            <span v-for="item in guesses" :key="item.id" class="guess-item">
-              <b>{{ item.playerName }}</b>: {{ item.text }}
-            </span>
           </div>
         </template>
 

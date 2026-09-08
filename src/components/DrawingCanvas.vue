@@ -46,11 +46,11 @@ const { tool, preview } = tools
 const toolButtons: Array<{ value: DrawingTool; label: string }> = [
   { value: 'brush', label: 'Brush' },
   { value: 'eraser', label: 'Eraser' },
-  { value: 'line', label: 'Line' },
   { value: 'rectangle', label: 'Rectangle' },
   { value: 'filledRectangle', label: 'Filled rectangle' },
   { value: 'circle', label: 'Circle' },
   { value: 'filledCircle', label: 'Filled circle' },
+  { value: 'line', label: 'Line' },
   { value: 'fill', label: 'Fill' },
 ]
 let resizeObserver: ResizeObserver | undefined
@@ -243,12 +243,18 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 <template>
   <div class="drawing-canvas" :style="{ '--canvas-width': `${width}px` }">
     <div v-if="!readonly" class="drawing-toolbar" role="toolbar" aria-label="Drawing tools">
-      <button v-for="item in toolButtons" :key="item.value" type="button" :class="{ active: tool === item.value }" @click="tool = item.value">{{ item.label }}</button>
-      <input v-model="currentColor" type="color" aria-label="Drawing color" />
-      <label class="width-control">Size <input v-model.number="currentLineWidth" type="range" min="1" max="32" /></label>
-      <button type="button" :disabled="!actions.length" @click="undo">Undo</button>
-      <button type="button" :disabled="!redoStack.length" @click="redo">Redo</button>
-      <button type="button" :disabled="!actions.length" @click="clear">Clear</button>
+      <div class="toolbar-section tool-selection" aria-label="Tool selection">
+        <button v-for="item in toolButtons" :key="item.value" type="button" :class="{ active: tool === item.value }" @click="tool = item.value">{{ item.label }}</button>
+        <div class="history-controls">
+          <button type="button" :disabled="!actions.length" @click="undo">Undo</button>
+          <button type="button" :disabled="!redoStack.length" @click="redo">Redo</button>
+          <button type="button" :disabled="!actions.length" @click="clear">Clear</button>
+        </div>
+      </div>
+      <div class="toolbar-section tool-settings" aria-label="Tool settings">
+        <input v-model="currentColor" type="color" aria-label="Drawing color" />
+        <label class="width-control">Size <input v-model.number="currentLineWidth" type="range" min="1" max="32" /></label>
+      </div>
     </div>
     <canvas ref="canvas" :aria-label="`${toolLabel} drawing canvas`" @pointerdown="tools.begin" @pointermove="tools.move" @pointerup="tools.end" @pointercancel="tools.end" />
   </div>
