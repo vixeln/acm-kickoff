@@ -196,13 +196,15 @@ usable for local rendering and projector rendering. `HostView.vue` sends the `ch
 The current room message categories are:
 
 ```text
-{ "type": "drawing-preview", "action": action-or-null }
-{ "type": "drawing-state", "actions": actions }
+{ "type": "drawing-preview", "sequence": 42, "action": action-or-null }
+{ "type": "drawing-state", "sequence": 43, "actions": actions }
 ```
 
-Preview updates are transient and can be replaced freely. Every committed change—including
-undo, redo, and clear—is sent as a complete `drawing-state` snapshot. A projector receives a
-complete state from the server on reconnect before applying later preview messages.
+Preview updates are transient and can be replaced freely; the host coalesces them to one message
+per animation frame. Every message includes a monotonically increasing `sequence`, and the
+projector ignores older messages that arrive late. Every committed change—including undo, redo,
+and clear—is sent as a complete `drawing-state` snapshot. A projector receives a complete state
+from the server on reconnect before applying later preview messages.
 
 ## Extension points
 

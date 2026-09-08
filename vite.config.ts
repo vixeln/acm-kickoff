@@ -34,10 +34,11 @@ function sendDevWebSocket(socket: Socket, payload: unknown) {
 }
 
 function isDevDrawingPayload(value: unknown): value is
-  | { type: 'drawing-state'; actions: DrawingAction[] }
-  | { type: 'drawing-preview'; action: DrawingAction | null } {
+  | { type: 'drawing-state'; actions: DrawingAction[]; sequence: number }
+  | { type: 'drawing-preview'; action: DrawingAction | null; sequence: number } {
   if (!value || typeof value !== 'object') return false
-  const payload = value as { type?: unknown; actions?: unknown; action?: unknown }
+  const payload = value as { type?: unknown; actions?: unknown; action?: unknown; sequence?: unknown }
+  if (typeof payload.sequence !== 'number' || !Number.isInteger(payload.sequence) || payload.sequence < 1) return false
   if (payload.type === 'drawing-state') return Array.isArray(payload.actions)
   return payload.type === 'drawing-preview' && (payload.action === null || typeof payload.action === 'object')
 }
@@ -65,7 +66,7 @@ function handleDevWebSocketUpgrade(request: IncomingMessage, socket: Socket) {
   devDrawingSockets.set(roomCode, clients)
   if (role === 'display') {
     const state = getDrawingState(roomCode)
-    if (state) sendDevWebSocket(socket, { type: 'drawing-state', ...state })
+    if (state) sendDevWebSocket(socket, { type: 'drawing-state', ...state, sequence: 0 })
   }
 
   socket.on('data', (chunk) => {

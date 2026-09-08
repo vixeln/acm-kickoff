@@ -24,6 +24,9 @@ const isStartingRoom = ref(false)
 const drawingActions = ref<DrawingAction[]>([])
 let drawingSocket: WebSocket | undefined
 let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
+let previewFrame = 0
+let pendingPreview: DrawingAction | null = null
+let drawingSequence = 0
 let playersPoll: ReturnType<typeof setInterval> | undefined
 
 const isLoopbackHost = computed(() =>
@@ -102,7 +105,10 @@ async function startRoom() {
 }
 
 function sendDrawingMessage(message: object) {
-  if (drawingSocket?.readyState === WebSocket.OPEN) drawingSocket.send(JSON.stringify(message))
+  if (drawingSocket?.readyState === WebSocket.OPEN) {
+    drawingSequence += 1
+    drawingSocket.send(JSON.stringify({ ...message, sequence: drawingSequence }))
+  }
 }
 
 function connectDrawingSocket() {
@@ -125,7 +131,17 @@ function drawingChanged(actions: DrawingAction[]) {
 }
 
 function drawingPreviewChanged(action: DrawingAction | null) {
-  sendDrawingMessage({ type: 'drawing-preview', action })
+  pendingPreview = action
+  if (previewFrame) cancelAnimationFrame(previewFrame)
+  if (!action) {
+    previewFrame = 0
+    sendDrawingMessage({ type: 'drawing-preview', action: null })
+    return
+  }
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = 0
+    sendDrawingMessage({ type: 'drawing-preview', action: pendingPreview })
+  })
 }
 
 async function refreshPlayers() {
@@ -194,6 +210,8 @@ async function endSession() {
     if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
     drawingSocket?.close()
     drawingSocket = undefined
+    if (previewFrame) cancelAnimationFrame(previewFrame)
+    previewFrame = 0
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error ? error.message : 'Could not end the session.'
@@ -234,6 +252,7 @@ onBeforeUnmount(() => {
   if (playersPoll) clearInterval(playersPoll)
   if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
   drawingSocket?.close()
+  if (previewFrame) cancelAnimationFrame(previewFrame)
 })
 </script>
 

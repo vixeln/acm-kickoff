@@ -10,6 +10,7 @@ const players = ref<Array<{ id: string; name: string }>>([])
 const errorMessage = ref('')
 const drawingActions = ref<DrawingAction[]>([])
 const drawingPreview = ref<DrawingAction | null>(null)
+let latestDrawingSequence = -1
 let drawingSocket: WebSocket | undefined
 let roomPoll: ReturnType<typeof setInterval> | undefined
 
@@ -33,10 +34,13 @@ onMounted(() => {
     try {
       const message = JSON.parse(String(event.data)) as {
         type?: string
+        sequence?: number
         actions?: DrawingAction[]
         preview?: DrawingAction | null
         action?: DrawingAction | null
       }
+      if (typeof message.sequence !== 'number' || !Number.isInteger(message.sequence) || message.sequence <= latestDrawingSequence) return
+      latestDrawingSequence = message.sequence
       if (message.type === 'drawing-state' && Array.isArray(message.actions)) {
         drawingActions.value = message.actions
         drawingPreview.value = message.preview ?? null

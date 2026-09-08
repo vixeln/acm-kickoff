@@ -395,7 +395,7 @@ const server = Bun.serve<SocketData>({
         drawingSockets.set(socket.data.roomCode, sockets)
         if (socket.data.role === 'display') {
           const state = getDrawingState(socket.data.roomCode)
-          if (state) socket.send(JSON.stringify({ type: 'drawing-state', ...state }))
+          if (state) socket.send(JSON.stringify({ type: 'drawing-state', ...state, sequence: 0 }))
         }
       }
       console.log('connected', socket.data)
@@ -451,10 +451,11 @@ function isDrawingAction(value: unknown): value is DrawingAction {
 }
 
 function isDrawingMessage(value: unknown): value is
-  | { type: 'drawing-state'; actions: DrawingAction[] }
-  | { type: 'drawing-preview'; action: DrawingAction | null } {
+  | { type: 'drawing-state'; actions: DrawingAction[]; sequence: number }
+  | { type: 'drawing-preview'; action: DrawingAction | null; sequence: number } {
   if (!value || typeof value !== 'object') return false
-  const message = value as { type?: unknown; actions?: unknown; action?: unknown }
+  const message = value as { type?: unknown; actions?: unknown; action?: unknown; sequence?: unknown }
+  if (!Number.isInteger(message.sequence) || message.sequence < 1) return false
   if (message.type === 'drawing-state') {
     return Array.isArray(message.actions) && message.actions.length <= 20_000 && message.actions.every(isDrawingAction)
   }
