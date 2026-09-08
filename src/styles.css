@@ -417,6 +417,87 @@ button:disabled {
   padding: 0;
 }
 
+.color-palette {
+  display: grid;
+  grid-template-columns: repeat(4, 24px);
+  grid-auto-rows: 24px;
+  gap: 5px;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--swatch-color) !important;
+  box-shadow: inset 0 0 0 1px rgb(32 33 36 / 18%);
+}
+
+.color-swatch:hover,
+.color-swatch.active {
+  border-color: #4267d5;
+  background: var(--swatch-color) !important;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #4267d5;
+  transform: none;
+}
+
+.custom-slot {
+  width: 24px;
+  height: 24px;
+  border: 1px dashed #bbb5aa;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 40%);
+}
+
+.custom-color-row {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: #65676b;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.custom-color-row input[type='color'] {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgb(32 33 36 / 22%);
+  border-radius: 8px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.custom-color-row input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-color-row input[type='color']::-webkit-color-swatch {
+  border: 0;
+  border-radius: 7px;
+}
+
+.custom-color-row input[type='color']::-moz-color-swatch {
+  border: 0;
+  border-radius: 7px;
+}
+
+.color-value {
+  color: #85878b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+}
+
 .drawing-canvas canvas {
   display: block;
   width: 100%;
@@ -813,7 +894,7 @@ button:disabled {
   position: relative;
   flex: 1;
   min-height: 0;
-  padding-right: 124px;
+  padding-right: 144px;
 }
 
 .host-drawing .drawing-canvas canvas {
@@ -830,7 +911,7 @@ button:disabled {
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
-  width: 112px;
+  width: 132px;
   margin: 0;
   padding: 0;
   gap: 10px;
@@ -854,11 +935,24 @@ button:disabled {
 
 .host-drawing .tool-settings {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .host-drawing .tool-settings {
   gap: 8px;
+}
+
+.host-drawing .color-palette {
+  grid-column: 1 / -1;
+  width: 111px;
+}
+
+.host-drawing .drawing-toolbar .color-swatch {
+  min-width: 24px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  flex: 0 0 24px;
 }
 
 .host-drawing .history-controls {
@@ -897,22 +991,23 @@ button:disabled {
 .host-drawing .history-controls button:last-child { grid-column: 1 / -1; }
 
 .host-drawing .drawing-toolbar input[type='color'] {
-  width: 34px;
+  width: 24px;
+  height: 24px;
   margin: 2px auto;
 }
 
 .host-drawing .width-control {
-  display: grid;
-  justify-items: center;
+  display: flex;
+  align-items: center;
   gap: 4px;
   margin: 0;
-  font-size: 0;
+  font-size: 0.68rem;
 }
 
 .host-drawing .width-control input {
-  width: 34px;
-  writing-mode: vertical-lr;
-  direction: rtl;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
 }
 
 @media (max-width: 1100px) {
@@ -933,9 +1028,9 @@ button:disabled {
   .guesses-panel { grid-row: 2; }
   .host-drawing .drawing-canvas { padding-right: 0; padding-bottom: 58px; }
   .host-drawing .drawing-canvas { flex: none; }
-  .host-drawing .drawing-toolbar { top: auto; right: 0; bottom: 0; width: 100%; height: 48px; flex-direction: row; }
+  .host-drawing .drawing-toolbar { top: auto; right: 0; bottom: 0; width: 100%; height: auto; min-height: 48px; flex-direction: row; }
   .host-drawing .toolbar-section { display: flex; flex-direction: row; width: auto; padding: 5px 6px; }
-  .host-drawing .tool-settings { margin-left: auto; }
+  .host-drawing .tool-settings { display: grid; grid-template-columns: 1fr; margin-left: auto; }
   .host-drawing .history-controls { flex-direction: row; width: auto; }
   .host-drawing .drawing-toolbar button { flex: 1; }
   .host-drawing .width-control { display: inline-flex; flex-direction: row; }

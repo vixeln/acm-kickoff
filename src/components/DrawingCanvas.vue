@@ -45,6 +45,13 @@ const tools = useDrawingTools({
   onPreview: (action) => updatePreview(action),
 })
 const { tool, preview } = tools
+const presetColors = [
+  '#202124', '#ffffff', '#a23b2a', '#d65a31',
+  '#f3c969', '#218c4c', '#4267d5', '#7b61a8',
+  '#e87ea1', '#8b5e3c', '#85878b', '#d8d4cb',
+]
+const customColors = ref<string[]>([])
+const customColor = ref(currentColor.value)
 const toolButtons: Array<{ value: DrawingTool; label: string; icon: Component }> = [
   { value: 'brush', label: 'Brush', icon: Brush },
   { value: 'eraser', label: 'Eraser', icon: Eraser },
@@ -56,6 +63,19 @@ const toolButtons: Array<{ value: DrawingTool; label: string; icon: Component }>
   { value: 'fill', label: 'Fill', icon: PaintBucket },
 ]
 let resizeObserver: ResizeObserver | undefined
+
+function selectCustomColor(color: string) {
+  const normalized = color.toLowerCase()
+  currentColor.value = normalized
+  customColor.value = normalized
+  if (presetColors.includes(normalized) || customColors.value.includes(normalized)) return
+  customColors.value = [...customColors.value.slice(-3), normalized]
+}
+
+function selectCustomSlot(index: number) {
+  const color = customColors.value[index]
+  if (color) currentColor.value = color
+}
 
 function isShape(action: DrawingAction): action is Extract<DrawingAction, { start: Point; end: Point }> {
   return action.type === 'line' || action.type === 'rectangle' || action.type === 'circle'
@@ -257,7 +277,37 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
         </div>
       </div>
       <div class="toolbar-section tool-settings" aria-label="Tool settings">
-        <input v-model="currentColor" type="color" aria-label="Drawing color" />
+        <div class="color-palette" role="group" aria-label="Preset colors">
+          <button
+            v-for="color in presetColors"
+            :key="color"
+            type="button"
+            class="color-swatch"
+            :class="{ active: currentColor.toLowerCase() === color }"
+            :style="{ '--swatch-color': color }"
+            :aria-label="`Use ${color}`"
+            :title="color"
+            @click="currentColor = color"
+          ></button>
+          <template v-for="slot in 4" :key="`custom-slot-${slot}`">
+            <button
+              v-if="customColors[slot - 1]"
+              type="button"
+              class="color-swatch custom-swatch"
+              :class="{ active: currentColor.toLowerCase() === customColors[slot - 1] }"
+              :style="{ '--swatch-color': customColors[slot - 1] }"
+              :aria-label="`Use custom color ${customColors[slot - 1]}`"
+              :title="customColors[slot - 1]"
+              @click="selectCustomSlot(slot - 1)"
+            ></button>
+            <span v-else class="custom-slot" aria-hidden="true"></span>
+          </template>
+        </div>
+        <label class="custom-color-row">
+          <span>Custom</span>
+          <input v-model="customColor" type="color" aria-label="Custom drawing color" @change="selectCustomColor(customColor)" />
+          <span class="color-value">{{ currentColor }}</span>
+        </label>
         <label class="width-control">Size <input v-model.number="currentLineWidth" type="range" min="1" max="32" /></label>
       </div>
     </div>
