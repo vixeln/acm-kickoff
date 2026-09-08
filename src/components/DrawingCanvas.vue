@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { Component } from 'vue'
+import { Brush, Circle, CircleDot, Eraser, Minus, PaintBucket, Redo2, Square, Trash2, Undo2 } from '@lucide/vue'
 import { useDrawingHistory } from '../composables/drawing/useDrawingHistory'
 import { useDrawingPointer } from '../composables/drawing/useDrawingPointer'
 import { useDrawingTools, type DrawingTool } from '../composables/drawing/useDrawingTools'
@@ -43,15 +45,15 @@ const tools = useDrawingTools({
   onPreview: (action) => updatePreview(action),
 })
 const { tool, preview } = tools
-const toolButtons: Array<{ value: DrawingTool; label: string }> = [
-  { value: 'brush', label: 'Brush' },
-  { value: 'eraser', label: 'Eraser' },
-  { value: 'rectangle', label: 'Rectangle' },
-  { value: 'filledRectangle', label: 'Filled rectangle' },
-  { value: 'circle', label: 'Circle' },
-  { value: 'filledCircle', label: 'Filled circle' },
-  { value: 'line', label: 'Line' },
-  { value: 'fill', label: 'Fill' },
+const toolButtons: Array<{ value: DrawingTool; label: string; icon: Component }> = [
+  { value: 'brush', label: 'Brush', icon: Brush },
+  { value: 'eraser', label: 'Eraser', icon: Eraser },
+  { value: 'rectangle', label: 'Rectangle', icon: Square },
+  { value: 'filledRectangle', label: 'Filled rectangle', icon: Square },
+  { value: 'circle', label: 'Circle', icon: Circle },
+  { value: 'filledCircle', label: 'Filled circle', icon: CircleDot },
+  { value: 'line', label: 'Line', icon: Minus },
+  { value: 'fill', label: 'Fill', icon: PaintBucket },
 ]
 let resizeObserver: ResizeObserver | undefined
 
@@ -244,11 +246,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   <div class="drawing-canvas" :style="{ '--canvas-width': `${width}px` }">
     <div v-if="!readonly" class="drawing-toolbar" role="toolbar" aria-label="Drawing tools">
       <div class="toolbar-section tool-selection" aria-label="Tool selection">
-        <button v-for="item in toolButtons" :key="item.value" type="button" :class="{ active: tool === item.value }" @click="tool = item.value">{{ item.label }}</button>
+        <button v-for="item in toolButtons" :key="item.value" type="button" :class="{ active: tool === item.value }" :aria-label="item.label" :title="item.label" @click="tool = item.value">
+          <component :is="item.icon" :size="18" :stroke-width="2" aria-hidden="true" />
+          <span class="sr-only">{{ item.label }}</span>
+        </button>
         <div class="history-controls">
-          <button type="button" :disabled="!actions.length" @click="undo">Undo</button>
-          <button type="button" :disabled="!redoStack.length" @click="redo">Redo</button>
-          <button type="button" :disabled="!actions.length" @click="clear">Clear</button>
+          <button type="button" aria-label="Undo" title="Undo" :disabled="!actions.length" @click="undo"><Undo2 :size="18" :stroke-width="2" aria-hidden="true" /><span class="sr-only">Undo</span></button>
+          <button type="button" aria-label="Redo" title="Redo" :disabled="!redoStack.length" @click="redo"><Redo2 :size="18" :stroke-width="2" aria-hidden="true" /><span class="sr-only">Redo</span></button>
+          <button type="button" aria-label="Clear canvas" title="Clear canvas" :disabled="!actions.length" @click="clear"><Trash2 :size="18" :stroke-width="2" aria-hidden="true" /><span class="sr-only">Clear</span></button>
         </div>
       </div>
       <div class="toolbar-section tool-settings" aria-label="Tool settings">
