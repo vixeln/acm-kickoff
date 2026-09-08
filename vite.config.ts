@@ -1,12 +1,116 @@
 import { fileURLToPath, URL } from 'node:url'
+import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Socket } from 'node:net'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 import { getLanUrls } from './lan.ts'
-import { addGuess, createRoom, deleteRoom, getAllGuesses, getPlayerGuesses, getRoom, joinRoom } from './room-session.ts'
+import {
+  addGuess,
+  createRoom,
+  deleteRoom,
+  getAllGuesses,
+  getDrawingState,
+  getPlayerGuesses,
+  getRoom,
+  joinRoom,
+  setDrawingPreview,
+  setDrawingState,
+} from './room-session.ts'
+import type { DrawingAction } from './src/types/drawing'
+
+type DevDrawingClient = { socket: Socket; role: 'host' | 'display'; roomCode: string; buffer: Buffer }
+const devDrawingSockets = new Map<string, Set<DevDrawingClient>>()
+
+function sendDevWebSocket(socket: Socket, payload: unknown) {
+  const body = Buffer.from(JSON.stringify(payload))
+  const header = body.length < 126
+    ? Buffer.from([0x81, body.length])
+    : Buffer.concat([Buffer.from([0x81, 126]), Buffer.from([(body.length >> 8) & 255, body.length & 255])])
+  socket.write(Buffer.concat([header, body]))
+}
+
+function isDevDrawingPayload(value: unknown): value is
+  | { type: 'drawing-state'; actions: DrawingAction[] }
+  | { type: 'drawing-preview'; action: DrawingAction | null } {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as { type?: unknown; actions?: unknown; action?: unknown }
+  if (payload.type === 'drawing-state') return Array.isArray(payload.actions)
+  return payload.type === 'drawing-preview' && (payload.action === null || typeof payload.action === 'object')
+}
+
+function handleDevWebSocketUpgrade(request: IncomingMessage, socket: Socket) {
+  const requestUrl = new URL(request.url ?? '/', 'http://localhost')
+  if (requestUrl.pathname !== '/ws') return false
+  const role = requestUrl.searchParams.get('role')
+  const roomCode = requestUrl.searchParams.get('room')?.trim().toUpperCase() ?? ''
+  if ((role !== 'host' && role !== 'display') || !roomCode || !getRoom(roomCode)) {
+    socket.end('HTTP/1.1 404 Not Found\r\n\r\n')
+    return true
+  }
+  const key = request.headers['sec-websocket-key']
+  if (typeof key !== 'string') {
+    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
+    return true
+  }
+  const accept = createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64')
+  socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`)
+
+  const client: DevDrawingClient = { socket, role, roomCode, buffer: Buffer.alloc(0) }
+  const clients = devDrawingSockets.get(roomCode) ?? new Set<DevDrawingClient>()
+  clients.add(client)
+  devDrawingSockets.set(roomCode, clients)
+  if (role === 'display') {
+    const state = getDrawingState(roomCode)
+    if (state) sendDevWebSocket(socket, { type: 'drawing-state', ...state })
+  }
+
+  socket.on('data', (chunk) => {
+    client.buffer = Buffer.concat([client.buffer, chunk])
+    while (client.buffer.length >= 2) {
+      const first = client.buffer[0] ?? 0
+      const second = client.buffer[1] ?? 0
+      const masked = Boolean(second & 0x80)
+      let length = second & 0x7f
+      let offset = 2
+      if (length === 126) {
+        if (client.buffer.length < 4) return
+        length = client.buffer.readUInt16BE(2)
+        offset = 4
+      }
+      if (!masked || length > 1_000_000 || client.buffer.length < offset + 4 + length) return
+      const mask = client.buffer.subarray(offset, offset + 4)
+      offset += 4
+      const data = Buffer.alloc(length)
+      for (let index = 0; index < length; index += 1) data[index] = (client.buffer[offset + index] ?? 0) ^ (mask[index % 4] ?? 0)
+      client.buffer = client.buffer.subarray(offset + length)
+      if ((first & 0x0f) === 8) {
+        socket.end()
+        return
+      }
+      if ((first & 0x0f) !== 1 || client.role !== 'host') continue
+      let payload: unknown
+      try { payload = JSON.parse(data.toString()) } catch { continue }
+      if (!isDevDrawingPayload(payload)) continue
+      if (payload.type === 'drawing-state') setDrawingState(roomCode, payload.actions)
+      else setDrawingPreview(roomCode, payload.action)
+      for (const peer of clients) {
+        if (peer.role === 'display') sendDevWebSocket(peer.socket, payload.type === 'drawing-state'
+          ? { type: 'drawing-state', actions: payload.actions, preview: null }
+          : payload)
+      }
+    }
+  })
+  socket.on('close', () => {
+    clients.delete(client)
+    if (!clients.size) devDrawingSockets.delete(roomCode)
+  })
+  socket.on('error', () => socket.destroy())
+  return true
+}
 
 /**
  * Emulates the Bun endpoints required by HostView while Vite owns the development server.
@@ -126,6 +230,9 @@ export default defineConfig({
       name: 'lan-network-info',
       configureServer(server) {
         installNetworkInfoMiddleware(server.middlewares, server.config.server.port)
+        server.httpServer?.on('upgrade', (request, socket) => {
+          handleDevWebSocketUpgrade(request, socket)
+        })
       },
       configurePreviewServer(server) {
         installNetworkInfoMiddleware(server.middlewares, server.config.preview.port)

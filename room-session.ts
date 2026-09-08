@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { DrawingAction } from './src/types/drawing'
 
 export type RoomPlayer = {
   id: string
@@ -21,6 +22,8 @@ export type Room = {
   secretWord: string
   players: Map<string, RoomPlayer>
   guesses: Guess[]
+  drawingActions: DrawingAction[]
+  drawingPreview: DrawingAction | null
 }
 
 const rooms = new Map<string, Room>()
@@ -51,9 +54,33 @@ export function createRoom(secretWord = '') {
     secretWord: secretWord.trim(),
     players: new Map(),
     guesses: [],
+    drawingActions: [],
+    drawingPreview: null,
   }
   rooms.set(code, room)
   return publicRoom(room)
+}
+
+export function getDrawingState(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  return room
+    ? { actions: [...room.drawingActions], preview: room.drawingPreview }
+    : null
+}
+
+export function setDrawingState(code: string, actions: DrawingAction[]) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return false
+  room.drawingActions = [...actions]
+  room.drawingPreview = null
+  return true
+}
+
+export function setDrawingPreview(code: string, preview: DrawingAction | null) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return false
+  room.drawingPreview = preview
+  return true
 }
 
 export function setSecretWord(code: string, secretWord: string) {

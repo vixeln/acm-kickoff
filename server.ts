@@ -13,12 +13,16 @@ import {
   joinRoom,
   removePlayer,
   setSecretWord,
+  getDrawingState,
+  setDrawingPreview,
+  setDrawingState,
 } from './room-session'
+import type { DrawingAction, Point } from './src/types/drawing'
 
 type SocketData = {
   playerId?: string
   sessionId?: string
-  role?: 'host' | 'player'
+  role?: 'host' | 'player' | 'display'
   roomCode?: string
 }
 
@@ -36,6 +40,7 @@ const loginAttempts = new Map<string, LoginAttempt>()
 const hostSessionDurationSeconds = 12 * 60 * 60
 const loginWindowMilliseconds = 15 * 60 * 1000
 const maximumLoginAttempts = 5
+const drawingSockets = new Map<string, Set<Bun.ServerWebSocket<SocketData>>>()
 
 if (Bun.env.RAILWAY_ENVIRONMENT_ID && !hostPassword) {
   console.warn('HOST_PASSWORD is not configured; public host access will remain locked.')
@@ -351,12 +356,17 @@ const server = Bun.serve<SocketData>({
 
     if (url.pathname === '/ws') {
       const wantsHostRole = url.searchParams.get('role') === 'host'
+      const wantsDisplayRole = url.searchParams.get('role') === 'display'
+      const roomCode = url.searchParams.get('room')?.trim().toUpperCase() ?? ''
+      if ((wantsHostRole || wantsDisplayRole) && !getRoom(roomCode)) {
+        return new Response('That room does not exist', { status: 404 })
+      }
       if (wantsHostRole && !isHostAuthorized(request, bunServer)) {
         return new Response('Host authentication required', { status: 401 })
       }
 
-      const role = wantsHostRole ? 'host' : 'player'
-      if (bunServer.upgrade(request, { data: { role } })) return
+      const role = wantsHostRole ? 'host' : wantsDisplayRole ? 'display' : 'player'
+      if (bunServer.upgrade(request, { data: { role, roomCode } })) return
 
       return new Response('WebSocket upgrade failed', { status: 400 })
     }
@@ -377,14 +387,41 @@ const server = Bun.serve<SocketData>({
   },
 
   websocket: {
-    /** WebSockets are available for future real-time game events; room entry uses HTTP for now. */
+    /** Drawing state is authoritative on the host and broadcast to read-only projectors. */
     open(socket) {
+      if ((socket.data.role === 'host' || socket.data.role === 'display') && socket.data.roomCode) {
+        const sockets = drawingSockets.get(socket.data.roomCode) ?? new Set()
+        sockets.add(socket)
+        drawingSockets.set(socket.data.roomCode, sockets)
+        if (socket.data.role === 'display') {
+          const state = getDrawingState(socket.data.roomCode)
+          if (state) socket.send(JSON.stringify({ type: 'drawing-state', ...state }))
+        }
+      }
       console.log('connected', socket.data)
     },
     message(socket, message) {
-      console.log('message:', message)
+      if (socket.data.role !== 'host' || !socket.data.roomCode) return
+      if (typeof message !== 'string' || message.length > 1_000_000) return
+      let payload: unknown
+      try { payload = JSON.parse(message) } catch { return }
+      if (!isDrawingMessage(payload)) return
+      if (payload.type === 'drawing-state') {
+        if (!setDrawingState(socket.data.roomCode, payload.actions)) return
+      } else if (!setDrawingPreview(socket.data.roomCode, payload.action)) return
+      const outgoing = JSON.stringify(payload.type === 'drawing-state'
+        ? { type: 'drawing-state', actions: payload.actions, preview: null }
+        : payload)
+      drawingSockets.get(socket.data.roomCode)?.forEach((peer) => {
+        if (peer !== socket && peer.data.role === 'display') peer.send(outgoing)
+      })
     },
     close(socket) {
+      if (socket.data.roomCode) {
+        const sockets = drawingSockets.get(socket.data.roomCode)
+        sockets?.delete(socket)
+        if (sockets?.size === 0) drawingSockets.delete(socket.data.roomCode)
+      }
       if (socket.data.role === 'player' && socket.data.roomCode && socket.data.playerId) {
         removePlayer(socket.data.roomCode, socket.data.playerId)
       }
@@ -392,6 +429,37 @@ const server = Bun.serve<SocketData>({
     },
   },
 })
+
+function isPoint(value: unknown): value is Point {
+  return Boolean(value && typeof value === 'object' && Number.isFinite((value as Point).x) && Number.isFinite((value as Point).y))
+}
+
+function isDrawingAction(value: unknown): value is DrawingAction {
+  if (!value || typeof value !== 'object') return false
+  const action = value as Partial<DrawingAction>
+  if (typeof action.id !== 'string' || typeof action.type !== 'string') return false
+  if (action.type === 'fill') return isPoint(action.point) && typeof action.color === 'string'
+  if (action.type === 'stroke' || action.type === 'eraser') {
+    return Array.isArray(action.points) && action.points.length <= 100_000 && action.points.every(isPoint)
+      && typeof action.color === 'string' && Number.isFinite(action.width)
+  }
+  if (action.type === 'line' || action.type === 'rectangle' || action.type === 'circle') {
+    return isPoint(action.start) && isPoint(action.end) && typeof action.color === 'string'
+      && Number.isFinite(action.width) && (action.type === 'line' || typeof action.filled === 'boolean')
+  }
+  return false
+}
+
+function isDrawingMessage(value: unknown): value is
+  | { type: 'drawing-state'; actions: DrawingAction[] }
+  | { type: 'drawing-preview'; action: DrawingAction | null } {
+  if (!value || typeof value !== 'object') return false
+  const message = value as { type?: unknown; actions?: unknown; action?: unknown }
+  if (message.type === 'drawing-state') {
+    return Array.isArray(message.actions) && message.actions.length <= 20_000 && message.actions.every(isDrawingAction)
+  }
+  return message.type === 'drawing-preview' && (message.action === null || isDrawingAction(message.action))
+}
 
 console.log(`Draw is available locally at http://localhost:${server.port}`)
 for (const address of networkAddresses) console.log(`Draw is available on your network at ${address}`)

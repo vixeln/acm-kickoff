@@ -189,20 +189,20 @@ projector client.
 ## WebSocket integration guidance
 
 The component does not open a WebSocket itself. Keeping transport outside the component makes it
-usable for local rendering, projector rendering, and future persistence.
+usable for local rendering and projector rendering. `HostView.vue` sends the `change` and
+`preview` events to the room WebSocket; `DisplayView.vue` passes received actions through
+`model-value` and the optional `preview` prop.
 
-Recommended message categories:
+The current room message categories are:
 
 ```text
-preview-start / preview-update / preview-cancel
-commit(action)
-history(undo | redo | clear)
-snapshot(actions)
+{ "type": "drawing-preview", "action": action-or-null }
+{ "type": "drawing-state", "actions": actions }
 ```
 
-Preview updates can be throttled or batched because they are transient. Completed actions and
-history changes should be sent reliably. A projector that reconnects should receive a complete
-`snapshot(actions)` before applying new preview messages.
+Preview updates are transient and can be replaced freely. Every committed change—including
+undo, redo, and clear—is sent as a complete `drawing-state` snapshot. A projector receives a
+complete state from the server on reconnect before applying later preview messages.
 
 ## Extension points
 

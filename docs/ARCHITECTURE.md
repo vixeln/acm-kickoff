@@ -39,10 +39,12 @@ and active WebSocket connections therefore belong to one Bun process.
 
 ### Vite development
 
-`bun dev` runs Vite on `0.0.0.0:5173`. Vite provides two development-only responses:
+`bun dev` runs Vite on `0.0.0.0:5173`. Vite provides development-only API and WebSocket handlers:
 
 - `/api/network-info` returns LAN login URLs.
 - `/api/host/status` treats the local developer as authenticated.
+- `/ws?role=host&room=:code` and `/ws?role=display&room=:code` synchronize drawing state in the
+  Vite process.
 
 The Bun API is not running in this mode. New API behavior needed by the UI should either be
 represented in Vite's development middleware or tested with the production server.
@@ -182,13 +184,26 @@ Operating-system mirroring cannot hide content because both outputs receive the 
 
 ## WebSockets
 
-Connect players to `/ws`. A future host client should connect to `/ws?role=host`; the server
-rejects that role unless the request includes a valid host cookie. Public clients must use
-`wss://` when the page uses HTTPS.
+The host and projector use a room-scoped WebSocket at `/ws`. The host connects with
+`/ws?role=host&room=:code`; the server requires the host cookie before upgrading. The projector
+connects read-only with `/ws?role=display&room=:code`. Public clients must use `wss://` when the
+page uses HTTPS.
 
-The current handlers only log connection lifecycle events and messages. Before implementing
-gameplay, define a versioned message schema, validate all incoming payloads, add heartbeat and
-reconnection behavior, and avoid trusting player-supplied role or room identifiers.
+The host is authoritative for drawing state. It sends the complete committed action list after
+connecting and after every change, plus temporary preview actions while a stroke or shape is in
+progress:
+
+```json
+{ "type": "drawing-state", "actions": [] }
+{ "type": "drawing-preview", "action": null }
+```
+
+The server validates message size, action structure, point counts, and numeric coordinates before
+storing the state and broadcasting it only to projectors in that room. A projector receives the
+current state immediately on connection, so refreshes and reconnects recover without waiting for
+another host edit. Host reconnects retry automatically; the next host state message restores the
+projector. Drawing state remains process-local along with the room, so Railway should run one
+replica unless room state and WebSocket fan-out are moved to shared infrastructure.
 
 ## Static file serving and client routing
 

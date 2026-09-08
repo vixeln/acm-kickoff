@@ -8,6 +8,7 @@ import type { DrawingAction, Point } from '../types/drawing'
 const props = withDefaults(
   defineProps<{
     modelValue?: DrawingAction[]
+    preview?: DrawingAction | null
     width?: number
     height?: number
     color?: string
@@ -223,6 +224,11 @@ watch(() => props.modelValue, (value) => {
     history.replace(value ?? [])
     redraw()
   }
+}, { deep: true })
+
+watch(() => props.preview, (value) => {
+  preview.value = value ?? null
+  redraw()
 }, { deep: true })
 
 onMounted(async () => {

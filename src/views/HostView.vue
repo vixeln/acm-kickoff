@@ -22,6 +22,8 @@ const players = ref<Array<{ id: string; name: string }>>([])
 const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
 const drawingActions = ref<DrawingAction[]>([])
+let drawingSocket: WebSocket | undefined
+let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
 let playersPoll: ReturnType<typeof setInterval> | undefined
 
 const isLoopbackHost = computed(() =>
@@ -87,6 +89,7 @@ async function startRoom() {
     const data = (await response.json()) as { room?: { code: string }; error?: string }
     if (!response.ok || !data.room) throw new Error(data.error ?? 'Could not start a room.')
     roomCode.value = data.room.code
+    connectDrawingSocket()
     await loadConnectionAddress()
     await refreshPlayers()
     playersPoll = setInterval(refreshPlayers, 2000)
@@ -96,6 +99,33 @@ async function startRoom() {
   } finally {
     isStartingRoom.value = false
   }
+}
+
+function sendDrawingMessage(message: object) {
+  if (drawingSocket?.readyState === WebSocket.OPEN) drawingSocket.send(JSON.stringify(message))
+}
+
+function connectDrawingSocket() {
+  if (!roomCode.value) return
+  if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  drawingSocket = new WebSocket(`${protocol}//${window.location.host}/ws?role=host&room=${encodeURIComponent(roomCode.value)}`)
+  drawingSocket.addEventListener('open', () => {
+    sendDrawingMessage({ type: 'drawing-state', actions: drawingActions.value })
+  })
+  drawingSocket.addEventListener('close', () => {
+    drawingSocket = undefined
+    if (roomCode.value) drawingReconnectTimer = setTimeout(connectDrawingSocket, 1500)
+  })
+}
+
+function drawingChanged(actions: DrawingAction[]) {
+  drawingActions.value = actions
+  sendDrawingMessage({ type: 'drawing-state', actions })
+}
+
+function drawingPreviewChanged(action: DrawingAction | null) {
+  sendDrawingMessage({ type: 'drawing-preview', action })
 }
 
 async function refreshPlayers() {
@@ -161,6 +191,9 @@ async function endSession() {
     players.value = []
     guesses.value = []
     drawingActions.value = []
+    if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
+    drawingSocket?.close()
+    drawingSocket = undefined
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error ? error.message : 'Could not end the session.'
@@ -199,6 +232,8 @@ async function signIn() {
 onMounted(checkAuthentication)
 onBeforeUnmount(() => {
   if (playersPoll) clearInterval(playersPoll)
+  if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
+  drawingSocket?.close()
 })
 </script>
 
@@ -282,7 +317,11 @@ onBeforeUnmount(() => {
               </div>
               <span class="drawing-status">Ready</span>
             </div>
-            <DrawingCanvas v-model="drawingActions" />
+            <DrawingCanvas
+              v-model="drawingActions"
+              @change="drawingChanged"
+              @preview="drawingPreviewChanged"
+            />
           </div>
           <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">
             Open projector view ↗
