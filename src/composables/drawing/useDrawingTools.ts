@@ -7,7 +7,15 @@ import { useFillTool } from './useFillTool'
 import { useLineTool } from './useLineTool'
 import { useRectangleTool } from './useRectangleTool'
 
-export type DrawingTool = 'brush' | 'eraser' | 'line' | 'rectangle' | 'circle' | 'fill'
+export type DrawingTool =
+  | 'brush'
+  | 'eraser'
+  | 'line'
+  | 'rectangle'
+  | 'filledRectangle'
+  | 'circle'
+  | 'filledCircle'
+  | 'fill'
 
 type DrawingToolOptions = {
   canvas: Ref<HTMLCanvasElement | undefined>
@@ -27,7 +35,6 @@ export function useDrawingTools(options: DrawingToolOptions) {
   const circle = useCircleTool()
   const fill = useFillTool()
   const tool = ref<DrawingTool>('brush')
-  const filled = ref(false)
   const preview = ref<DrawingAction | null>(null)
   const startPoint = ref<Point | null>(null)
   const isDrawing = ref(false)
@@ -77,9 +84,9 @@ export function useDrawingTools(options: DrawingToolOptions) {
     const id = preview.value?.id ?? makeId()
     const shape = tool.value === 'line'
       ? line.preview(id, startPoint.value, point, options.color.value, options.lineWidth.value)
-      : tool.value === 'rectangle'
-        ? rectangle.preview(id, startPoint.value, point, options.color.value, options.lineWidth.value, filled.value)
-        : circle.preview(id, startPoint.value, point, options.color.value, options.lineWidth.value, filled.value)
+      : tool.value === 'rectangle' || tool.value === 'filledRectangle'
+        ? rectangle.preview(id, startPoint.value, point, options.color.value, options.lineWidth.value, tool.value === 'filledRectangle')
+        : circle.preview(id, startPoint.value, point, options.color.value, options.lineWidth.value, tool.value === 'filledCircle')
     updatePreview(shape)
   }
 
@@ -95,5 +102,5 @@ export function useDrawingTools(options: DrawingToolOptions) {
     updatePreview(null)
   }
 
-  return { tool, filled, preview, begin, move, end, updatePreview }
+  return { tool, preview, begin, move, end, updatePreview }
 }

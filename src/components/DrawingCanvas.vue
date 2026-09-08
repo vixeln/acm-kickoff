@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDrawingHistory } from '../composables/drawing/useDrawingHistory'
 import { useDrawingPointer } from '../composables/drawing/useDrawingPointer'
-import { useDrawingTools } from '../composables/drawing/useDrawingTools'
+import { useDrawingTools, type DrawingTool } from '../composables/drawing/useDrawingTools'
 import type { DrawingAction, Point } from '../types/drawing'
 
 const props = withDefaults(
@@ -41,7 +41,17 @@ const tools = useDrawingTools({
   onCommit: (action) => commit(action),
   onPreview: (action) => updatePreview(action),
 })
-const { tool, filled, preview } = tools
+const { tool, preview } = tools
+const toolButtons: Array<{ value: DrawingTool; label: string }> = [
+  { value: 'brush', label: 'Brush' },
+  { value: 'eraser', label: 'Eraser' },
+  { value: 'line', label: 'Line' },
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'filledRectangle', label: 'Filled rectangle' },
+  { value: 'circle', label: 'Circle' },
+  { value: 'filledCircle', label: 'Filled circle' },
+  { value: 'fill', label: 'Fill' },
+]
 let resizeObserver: ResizeObserver | undefined
 
 function isShape(action: DrawingAction): action is Extract<DrawingAction, { start: Point; end: Point }> {
@@ -227,8 +237,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 <template>
   <div class="drawing-canvas" :style="{ '--canvas-width': `${width}px` }">
     <div v-if="!readonly" class="drawing-toolbar" role="toolbar" aria-label="Drawing tools">
-      <button v-for="item in ['brush', 'eraser', 'line', 'rectangle', 'circle', 'fill']" :key="item" type="button" :class="{ active: tool === item }" @click="tool = item as typeof tool">{{ item }}</button>
-      <label v-if="tool === 'rectangle' || tool === 'circle'" class="fill-toggle"><input v-model="filled" type="checkbox" /> Filled</label>
+      <button v-for="item in toolButtons" :key="item.value" type="button" :class="{ active: tool === item.value }" @click="tool = item.value">{{ item.label }}</button>
       <input v-model="currentColor" type="color" aria-label="Drawing color" />
       <label class="width-control">Size <input v-model.number="currentLineWidth" type="range" min="1" max="32" /></label>
       <button type="button" :disabled="!actions.length" @click="undo">Undo</button>

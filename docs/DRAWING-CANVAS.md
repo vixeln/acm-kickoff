@@ -101,15 +101,16 @@ Creates an `eraser` action with the same point format as a brush stroke. Renderi
 Uses the initial pointer position as `start` and the current pointer position as `end`. The line is
 previewed during dragging and committed on release.
 
-### Rectangle
+### Rectangle and filled rectangle
 
-Uses `start` and `end` as opposite corners. The toolbar's `Filled` option controls whether the
-rectangle is filled or outlined.
+Uses `start` and `end` as opposite corners. The toolbar provides separate `Rectangle` and
+`Filled rectangle` buttons, so the selected tool determines whether the rectangle is outlined or
+filled.
 
-### Circle
+### Circle and filled circle
 
-Uses `start` as the center. The distance from `start` to `end` becomes the radius. The `Filled`
-option controls whether the circle is filled or outlined.
+Uses `start` as the center. The distance from `start` to `end` becomes the radius. The toolbar
+provides separate `Circle` and `Filled circle` buttons.
 
 ### Fill
 
