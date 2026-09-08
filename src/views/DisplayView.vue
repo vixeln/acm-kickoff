@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import QRCode from 'qrcode'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import DrawingCanvas from '../components/DrawingCanvas.vue'
@@ -7,6 +8,8 @@ import type { DrawingAction } from '../types/drawing'
 const route = useRoute()
 const roomCode = String(route.params.room ?? '').toUpperCase()
 const players = ref<Array<{ id: string; name: string }>>([])
+const guesses = ref<Array<{ id: string; playerName: string; text: string }>>([])
+const qrCode = ref('')
 const errorMessage = ref('')
 const drawingActions = ref<DrawingAction[]>([])
 const drawingPreview = ref<DrawingAction | null>(null)
@@ -23,10 +26,35 @@ async function refreshRoom() {
   }
   const data = (await response.json()) as { room: { players: typeof players.value } }
   players.value = data.room.players
+  const guessesResponse = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/guesses?role=display`)
+  if (guessesResponse.ok) {
+    const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
+    guesses.value = guessesData.guesses
+  }
+}
+
+async function loadQrCode() {
+  try {
+    let address = `${window.location.origin}/login`
+    if (['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)) {
+      const response = await fetch('/api/network-info')
+      if (!response.ok) return
+      const data = (await response.json()) as { urls?: string[] }
+      if (!data.urls?.[0]) return
+      address = data.urls[0]
+    }
+    qrCode.value = await QRCode.toDataURL(`${address}?room=${roomCode}`, {
+      errorCorrectionLevel: 'M', margin: 2, width: 72,
+      color: { dark: '#202124', light: '#ffffff' },
+    })
+  } catch {
+    // The room display remains usable if a QR code cannot be generated.
+  }
 }
 
 onMounted(() => {
   refreshRoom()
+  loadQrCode()
   roomPoll = setInterval(refreshRoom, 2000)
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   drawingSocket = new WebSocket(`${protocol}//${window.location.host}/ws?role=display&room=${encodeURIComponent(roomCode)}`)
@@ -59,17 +87,48 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="display-shell">
-    <header class="display-header">
-      <div>
-        <p class="eyebrow">Draw live</p>
-        <h1>Room {{ roomCode }}</h1>
+  <main class="page-shell display-page">
+    <section v-if="!errorMessage" class="card display-card">
+      <div class="host-room display-room">
+        <header class="host-header display-host-header">
+          <div class="host-brand">
+            <div class="mark" aria-hidden="true">D</div>
+            <div>
+              <p class="eyebrow">Draw live</p>
+              <h1>Draw together</h1>
+            </div>
+          </div>
+          <div class="room-badge">
+            <span>Room code</span>
+            <strong>{{ roomCode }}</strong>
+          </div>
+          <div v-if="qrCode" class="join-card">
+            <img :src="qrCode" alt="QR code for the player login address" width="72" height="72" />
+            <div><strong>Join the game</strong><span>Scan to play on your phone</span></div>
+          </div>
+        </header>
+        <div class="host-body display-body">
+          <aside class="host-panel guesses-panel" aria-label="Player guesses">
+            <div class="panel-heading">
+              <div><span class="panel-kicker">Live chat</span><h2>Guesses</h2></div>
+              <span class="count-badge">{{ guesses.length }}</span>
+            </div>
+            <div class="guess-list host-guesses" aria-live="polite">
+              <span v-if="!guesses.length" class="empty-state">Guesses will appear here.</span>
+              <span v-for="item in guesses" :key="item.id" class="guess-item"><b>{{ item.playerName }}</b><br />{{ item.text }}</span>
+            </div>
+            <div class="player-list" aria-live="polite">
+              <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>
+              <span v-if="!players.length">Waiting for players…</span>
+              <span v-for="player in players" :key="player.id">{{ player.name }}</span>
+            </div>
+          </aside>
+          <section class="host-drawing display-drawing" aria-label="Audience drawing display">
+            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>Draw the clue</h2></div><span class="drawing-status"><i></i> Live</span></div>
+            <DrawingCanvas :model-value="drawingActions" :preview="drawingPreview" readonly />
+          </section>
+        </div>
       </div>
-      <div class="display-players">{{ players.length }} player{{ players.length === 1 ? '' : 's' }}</div>
-    </header>
-    <section v-if="!errorMessage" class="display-stage" aria-label="Audience drawing display">
-      <DrawingCanvas :model-value="drawingActions" :preview="drawingPreview" readonly />
-      <div class="display-word" aria-label="The drawing word is hidden from the audience">••••••••</div>
     </section>
     <p v-else class="display-error">{{ errorMessage }}</p>
   </main>

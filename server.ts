@@ -326,6 +326,11 @@ const server = Bun.serve<SocketData>({
         return guesses ? json({ guesses }) : json({ error: 'That room does not exist.' }, { status: 404 })
       }
 
+      if (url.searchParams.get('role') === 'display') {
+        const guesses = getAllGuesses(code)
+        return guesses ? json({ guesses }) : json({ error: 'That room does not exist.' }, { status: 404 })
+      }
+
       const guesses = getPlayerGuesses(
         code,
         url.searchParams.get('player') ?? '',

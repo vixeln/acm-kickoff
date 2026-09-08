@@ -599,6 +599,30 @@ button:disabled {
     #f4f1ea;
 }
 
+.display-page {
+  display: block;
+  padding: 0;
+}
+
+.display-card {
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.display-drawing .drawing-canvas {
+  padding-right: 0;
+}
+
+.display-drawing .drawing-canvas canvas {
+  cursor: default;
+}
+
 .card:has(.host-room) {
   width: 100%;
   min-height: 100vh;
