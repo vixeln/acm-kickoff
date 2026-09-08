@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import DrawingCanvas from '../components/DrawingCanvas.vue'
+import type { DrawingAction } from '../types/drawing'
 
 const connectionAddress = ref('')
 const qrCode = ref('')
@@ -19,6 +21,7 @@ const isEndingRoom = ref(false)
 const players = ref<Array<{ id: string; name: string }>>([])
 const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
+const drawingActions = ref<DrawingAction[]>([])
 let playersPoll: ReturnType<typeof setInterval> | undefined
 
 const isLoopbackHost = computed(() =>
@@ -157,6 +160,7 @@ async function endSession() {
     savedSecretWord.value = ''
     players.value = []
     guesses.value = []
+    drawingActions.value = []
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error ? error.message : 'Could not end the session.'
@@ -268,8 +272,18 @@ onBeforeUnmount(() => {
                 {{ isSavingSecretWord ? 'Saving…' : 'Save word' }}
               </button>
             </div>
-            <p v-if="savedSecretWord" class="saved-word">Private word: {{ savedSecretWord }}</p>
+          <p v-if="savedSecretWord" class="saved-word">Private word: {{ savedSecretWord }}</p>
           </form>
+          <div class="host-drawing">
+            <div class="drawing-heading">
+              <div>
+                <p class="eyebrow">Canvas</p>
+                <h2>Draw the clue</h2>
+              </div>
+              <span class="drawing-status">Ready</span>
+            </div>
+            <DrawingCanvas v-model="drawingActions" />
+          </div>
           <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">
             Open projector view ↗
           </a>

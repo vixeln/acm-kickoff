@@ -316,6 +316,107 @@ button:disabled {
   border: 1px solid #e8b8ac;
 }
 
+.host-drawing {
+  width: min(100%, 900px);
+  margin-top: 32px;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
+.drawing-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.drawing-heading .eyebrow {
+  margin-bottom: 4px;
+}
+
+.drawing-heading h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.03em;
+}
+
+.drawing-status {
+  color: #218c4c;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.drawing-canvas {
+  width: 100%;
+}
+
+.drawing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.drawing-toolbar button {
+  margin: 0;
+  padding: 8px 10px;
+  color: #202124;
+  border: 1px solid #d8d4cb;
+  background: #fff;
+  font-size: 0.76rem;
+  text-transform: capitalize;
+}
+
+.drawing-toolbar button:hover,
+.drawing-toolbar button.active {
+  color: white;
+  background: #202124;
+}
+
+.drawing-toolbar button:disabled {
+  color: #9a9b9e;
+  background: #f4f1ea;
+}
+
+.drawing-toolbar input[type='color'] {
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+  border: 1px solid #d8d4cb;
+  border-radius: 8px;
+  background: white;
+}
+
+.fill-toggle,
+.width-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 4px;
+  color: #65676b;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.width-control input {
+  width: 70px;
+  padding: 0;
+}
+
+.drawing-canvas canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #d8d4cb;
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 10px 30px rgb(32 33 36 / 8%);
+  cursor: crosshair;
+  touch-action: none;
+}
+
 .end-session-button:hover {
   background: #ffe8e1;
 }
