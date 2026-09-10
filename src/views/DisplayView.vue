@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import DrawingCanvas from '../components/DrawingCanvas.vue'
 import type { DrawingAction } from '../types/drawing'
@@ -18,6 +18,18 @@ const currentRound = ref(0)
 const rounds = ref(3)
 const scoreboard = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
 const roundScores = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
+const scoreAnimationProgress = ref(1)
+let scoreAnimationFrame = 0
+const roundLeaderboard = computed(() => scoreboard.value.slice(0, 10).map((player) => {
+  const roundScore = roundScores.value.find((entry) => entry.playerId === player.playerId)?.score ?? 0
+  const before = Math.max(0, player.score - roundScore)
+  return {
+    ...player,
+    roundScore,
+    before,
+    displayedScore: Math.round(before + (player.score - before) * scoreAnimationProgress.value),
+  }
+}))
 let latestDrawingSequence = -1
 let drawingSocket: WebSocket | undefined
 let roomPoll: ReturnType<typeof setInterval> | undefined
@@ -97,9 +109,21 @@ onMounted(() => {
     }
   })
 })
+watch([gamePhase, currentRound], ([phase]) => {
+  if (phase !== 'round-break') return
+  scoreAnimationProgress.value = 0
+  if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
+  const startedAt = performance.now()
+  const animate = (now: number) => {
+    scoreAnimationProgress.value = Math.min(1, (now - startedAt) / 1400)
+    if (scoreAnimationProgress.value < 1) scoreAnimationFrame = requestAnimationFrame(animate)
+  }
+  scoreAnimationFrame = requestAnimationFrame(animate)
+})
 onBeforeUnmount(() => {
   if (roomPoll) clearInterval(roomPoll)
   drawingSocket?.close()
+  if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
 })
 </script>
 
@@ -151,7 +175,7 @@ onBeforeUnmount(() => {
             <div v-else-if="gamePhase === 'round-break'" class="score-reveal-stage">
               <span class="panel-kicker">Round results</span>
               <strong>Audience score</strong>
-              <div class="scoreboard-list" aria-live="polite"><div v-for="player in scoreboard" :key="player.playerId"><span>{{ player.playerName }}</span><strong>{{ player.score }} <em v-if="roundScores.find((entry) => entry.playerId === player.playerId)">(+{{ roundScores.find((entry) => entry.playerId === player.playerId)?.score }})</em></strong></div></div>
+              <TransitionGroup name="score-stack" tag="div" class="scoreboard-list score-stack" aria-live="polite"><div v-for="(player, index) in roundLeaderboard" :key="player.playerId" class="score-stack-row"><span><i>{{ index + 1 }}</i>{{ player.playerName }}</span><strong><small>{{ player.before }}</small> → {{ player.displayedScore }} <em v-if="player.roundScore">(+{{ player.roundScore }})</em></strong></div></TransitionGroup>
               <small>Round {{ currentRound }} complete</small>
             </div>
             <DrawingCanvas v-else :model-value="drawingActions" :preview="drawingPreview" readonly />

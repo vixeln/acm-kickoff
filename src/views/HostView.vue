@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import QRCode from 'qrcode'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DrawingCanvas from '../components/DrawingCanvas.vue'
 import type { DrawingAction } from '../types/drawing'
 
@@ -27,6 +27,15 @@ const drawingTime = ref(60)
 const rounds = ref(3)
 const wordPickTime = ref(15)
 const currentRound = ref(0)
+const scoreboard = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
+const roundScores = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
+const scoreAnimationProgress = ref(1)
+let scoreAnimationFrame = 0
+const roundLeaderboard = computed(() => scoreboard.value.slice(0, 10).map((player) => {
+  const roundScore = roundScores.value.find((entry) => entry.playerId === player.playerId)?.score ?? 0
+  const before = Math.max(0, player.score - roundScore)
+  return { ...player, roundScore, before, displayedScore: Math.round(before + (player.score - before) * scoreAnimationProgress.value) }
+}))
 const phaseStartedAt = ref<number | null>(null)
 const developerMode = ref(false)
 const secondsRemaining = ref(60)
@@ -179,7 +188,7 @@ async function refreshPlayers() {
   if (!roomCode.value) return
   const response = await fetch(`/api/rooms/${roomCode.value}`)
   if (!response.ok) return
-  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }>; game?: { phase: typeof gamePhase.value; settings: { drawingTime: number; rounds: number; wordPickTime: number }; currentRound: number; phaseStartedAt: number | null } } }
+  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }>; game?: { phase: typeof gamePhase.value; settings: { drawingTime: number; rounds: number; wordPickTime: number }; currentRound: number; phaseStartedAt: number | null; scoreboard?: typeof scoreboard.value; roundScores?: typeof roundScores.value } } }
   players.value = data.room.players
   if (data.room.game) {
     gamePhase.value = data.room.game.phase
@@ -188,6 +197,8 @@ async function refreshPlayers() {
     wordPickTime.value = data.room.game.settings.wordPickTime
     currentRound.value = data.room.game.currentRound
     phaseStartedAt.value = data.room.game.phaseStartedAt
+    scoreboard.value = data.room.game.scoreboard ?? []
+    roundScores.value = data.room.game.roundScores ?? []
   }
   const hostStateResponse = await fetch(`/api/rooms/${roomCode.value}/host-state`)
   if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'round-word') {
@@ -439,12 +450,24 @@ async function signIn() {
 
 onMounted(checkAuthentication)
 onMounted(() => { countdownPoll = setInterval(updateCountdown, 1000) })
+watch([gamePhase, currentRound], ([phase]) => {
+  if (phase !== 'round-break') return
+  scoreAnimationProgress.value = 0
+  if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
+  const startedAt = performance.now()
+  const animate = (now: number) => {
+    scoreAnimationProgress.value = Math.min(1, (now - startedAt) / 1400)
+    if (scoreAnimationProgress.value < 1) scoreAnimationFrame = requestAnimationFrame(animate)
+  }
+  scoreAnimationFrame = requestAnimationFrame(animate)
+})
 onBeforeUnmount(() => {
   if (playersPoll) clearInterval(playersPoll)
   if (countdownPoll) clearInterval(countdownPoll)
   if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
   drawingSocket?.close()
   if (previewFrame) cancelAnimationFrame(previewFrame)
+  if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
 })
 </script>
 
@@ -621,8 +644,8 @@ onBeforeUnmount(() => {
                 <div v-else-if="gamePhase === 'round-break'" class="score-reveal-stage">
                   <span class="panel-kicker">Round results</span>
                   <strong>Audience score</strong>
-                  <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
-                  <small>Scoring will be connected here soon.</small>
+                  <TransitionGroup name="score-stack" tag="div" class="scoreboard-list score-stack" aria-live="polite"><div v-for="(player, index) in roundLeaderboard" :key="player.playerId" class="score-stack-row"><span><i>{{ index + 1 }}</i>{{ player.playerName }}</span><strong><small>{{ player.before }}</small> → {{ player.displayedScore }} <em v-if="player.roundScore">(+{{ player.roundScore }})</em></strong></div></TransitionGroup>
+                  <small>Round {{ currentRound }} complete</small>
                 </div>
                 <div v-else-if="gamePhase === 'word-pick'" class="word-pick-stage">
                   <span class="word-pick-stage-icon">✦</span>
