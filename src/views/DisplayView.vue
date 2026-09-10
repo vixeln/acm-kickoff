@@ -32,11 +32,15 @@ const roundLeaderboard = computed(() => scoreboard.value.slice(0, 10).map((playe
 }))
 let latestDrawingSequence = -1
 let drawingSocket: WebSocket | undefined
+let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
+let displayUnmounted = false
 let roomPoll: ReturnType<typeof setInterval> | undefined
+let guessesPoll: ReturnType<typeof setInterval> | undefined
+let latestGuessesRequest = 0
 
 async function refreshRoom() {
   if (!roomCode) return
-  const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}`)
+  const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}`, { cache: 'no-store' })
   if (!response.ok) {
     errorMessage.value = 'That room is not available.'
     return
@@ -50,11 +54,19 @@ async function refreshRoom() {
     scoreboard.value = data.room.game.scoreboard ?? []
     roundScores.value = data.room.game.roundScores ?? []
   }
-  const guessesResponse = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/guesses?role=display`)
-  if (guessesResponse.ok) {
-    const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
-    guesses.value = guessesData.guesses
+}
+
+async function refreshGuesses() {
+  if (!roomCode) return
+  const requestId = ++latestGuessesRequest
+  let response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/display-guesses`, { cache: 'no-store' })
+  // Support servers running the previous API while they are being restarted or redeployed.
+  if (response.status === 404) {
+    response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/guesses?role=display`, { cache: 'no-store' })
   }
+  if (!response.ok || requestId !== latestGuessesRequest) return
+  const data = (await response.json()) as { guesses: typeof guesses.value }
+  if (requestId === latestGuessesRequest) guesses.value = data.guesses
 }
 
 async function loadQrCode() {
@@ -77,11 +89,20 @@ async function loadQrCode() {
 }
 
 onMounted(() => {
+  displayUnmounted = false
   refreshRoom()
+  refreshGuesses()
   loadQrCode()
   roomPoll = setInterval(refreshRoom, 2000)
+  guessesPoll = setInterval(refreshGuesses, 500)
+  connectDisplaySocket()
+})
+
+function connectDisplaySocket() {
+  if (!roomCode || displayUnmounted) return
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   drawingSocket = new WebSocket(`${protocol}//${window.location.host}/ws?role=display&room=${encodeURIComponent(roomCode)}`)
+  drawingSocket.addEventListener('open', () => { refreshRoom() })
   drawingSocket.addEventListener('message', (event) => {
     try {
       const message = JSON.parse(String(event.data)) as {
@@ -108,7 +129,11 @@ onMounted(() => {
       // Ignore malformed messages; the server validates all drawing broadcasts.
     }
   })
-})
+  drawingSocket.addEventListener('close', () => {
+    drawingSocket = undefined
+    if (!displayUnmounted) drawingReconnectTimer = setTimeout(connectDisplaySocket, 1000)
+  })
+}
 watch([gamePhase, currentRound], ([phase]) => {
   if (phase !== 'round-break') return
   scoreAnimationProgress.value = 0
@@ -122,6 +147,9 @@ watch([gamePhase, currentRound], ([phase]) => {
 })
 onBeforeUnmount(() => {
   if (roomPoll) clearInterval(roomPoll)
+  if (guessesPoll) clearInterval(guessesPoll)
+  displayUnmounted = true
+  if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
   drawingSocket?.close()
   if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
 })

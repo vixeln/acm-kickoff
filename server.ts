@@ -475,6 +475,11 @@ const server = Bun.serve<SocketData>({
     }
 
     const guessesMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/guesses$/i)
+    const displayGuessesMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/display-guesses$/i)
+    if (displayGuessesMatch && request.method === 'GET') {
+      const guesses = getAllGuesses(displayGuessesMatch[1])
+      return guesses ? json({ guesses }) : json({ error: 'That room does not exist.' }, { status: 404 })
+    }
     if (guessesMatch && request.method === 'GET') {
       const code = guessesMatch[1]
       if (url.searchParams.get('role') === 'host') {
