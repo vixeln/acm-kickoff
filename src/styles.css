@@ -999,6 +999,10 @@ button:disabled {
 .score-transition { display: flex; align-items: center; gap: 18px; color: #f3c969; font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 900; }
 .score-transition b { color: #85878b; font-size: 0.6em; animation: score-arrow-pulse 900ms ease-in-out infinite alternate; }
 .score-transition span:last-child { animation: score-number-pop 900ms ease-out both; }
+.final-score-stage { min-height: 460px; border-color: rgb(243 201 105 / 30%); box-shadow: inset 0 0 80px rgb(243 201 105 / 7%); }
+.final-score-stage strong { font-size: clamp(1.7rem, 4vw, 3rem); }
+.back-to-waiting-button { margin: 14px 0 0; color: #202124; background: white; }
+.back-to-waiting-button:hover { color: white; background: #34363a; }
 
 @keyframes score-arrow-pulse {
   from { opacity: 0.45; transform: translateX(-4px); }

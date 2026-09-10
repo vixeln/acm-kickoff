@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
       </template>
       <template v-else>
         <h1 id="connected-title">You're in, {{ playerName }}.</h1>
-        <p class="subtitle">{{ gamePhase === 'waiting' ? 'The host is getting the game ready.' : gamePhase === 'word-pick' ? 'The host is choosing a word for the round.' : gamePhase === 'finished' ? 'The game is complete.' : gamePhase === 'round-break' ? 'Get ready for the next round.' : `Round ${currentRound} of ${totalRounds} is live. Send your guesses below.` }}</p>
+        <p class="subtitle">{{ gamePhase === 'waiting' ? 'The host is getting the game ready.' : gamePhase === 'word-pick' ? 'The host is choosing a word for the round.' : gamePhase === 'finished' ? 'Final audience scores are being shown.' : gamePhase === 'round-break' ? 'Get ready for the next round.' : `Round ${currentRound} of ${totalRounds} is live. Send your guesses below.` }}</p>
         <form class="guess-form" @submit.prevent="sendGuess">
           <label for="guess">Your word guess</label>
           <div class="guess-entry">

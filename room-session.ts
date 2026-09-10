@@ -182,6 +182,20 @@ export function advanceGame(code: string) {
   return { room: publicRoom(room) }
 }
 
+export function resetGame(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  room.phase = 'waiting'
+  room.currentRound = 0
+  room.phaseStartedAt = null
+  room.secretWord = ''
+  room.wordOptions = []
+  room.guesses = []
+  room.drawingActions = []
+  room.drawingPreview = null
+  return { room: publicRoom(room) }
+}
+
 export function getDrawingState(code: string) {
   const room = rooms.get(normalizeRoomCode(code))
   return room

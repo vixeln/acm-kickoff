@@ -21,6 +21,7 @@ import {
   beginRound,
   chooseWord,
   advanceGame,
+  resetGame,
   setWordPool,
 } from './room-session'
 import type { DrawingAction, Point } from './src/types/drawing'
@@ -346,11 +347,17 @@ const server = Bun.serve<SocketData>({
     }
 
     const advanceGameMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/advance$/i)
+    const resetGameMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/reset$/i)
     if (advanceGameMatch && request.method === 'POST') {
       if (!isHostAuthorized(request, bunServer)) {
         return json({ error: 'Host authentication required.' }, { status: 401 })
       }
       const result = advanceGame(advanceGameMatch[1])
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+    }
+    if (resetGameMatch && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      const result = resetGame(resetGameMatch[1])
       return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
     }
 

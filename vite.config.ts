@@ -25,6 +25,7 @@ import {
   beginRound,
   chooseWord,
   advanceGame,
+  resetGame,
   setWordPool,
   setSecretWord,
 } from './room-session.ts'
@@ -159,6 +160,7 @@ function installNetworkInfoMiddleware(
     const hostStateMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/host-state$/i)
     const secretWordMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/secret-word$/i)
     const advanceGameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/advance$/i)
+    const resetGameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/reset$/i)
     const send = (status: number, data: unknown) => {
       response.statusCode = status
       response.setHeader('Content-Type', 'application/json')
@@ -242,6 +244,11 @@ function installNetworkInfoMiddleware(
     }
     if (request.method === 'POST' && advanceGameMatch) {
       const result = advanceGame(advanceGameMatch[1])
+      send('error' in result ? 400 : 200, result)
+      return
+    }
+    if (request.method === 'POST' && resetGameMatch) {
+      const result = resetGame(resetGameMatch[1])
       send('error' in result ? 400 : 200, result)
       return
     }

@@ -133,7 +133,13 @@ onBeforeUnmount(() => {
           </aside>
           <section class="host-drawing display-drawing" aria-label="Audience drawing display">
             <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'word-pick' ? 'Host is picking a word' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div>
-            <div v-if="gamePhase === 'round-break'" class="score-reveal-stage">
+            <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
+              <span class="panel-kicker">Final results</span>
+              <strong>Final audience score</strong>
+              <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
+              <small>Thanks for playing · Final scoring will be connected here soon.</small>
+            </div>
+            <div v-else-if="gamePhase === 'round-break'" class="score-reveal-stage">
               <span class="panel-kicker">Round results</span>
               <strong>Audience score</strong>
               <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>

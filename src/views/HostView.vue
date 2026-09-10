@@ -260,6 +260,21 @@ async function chooseRandomWord() {
   if (word) await chooseWord(word)
 }
 
+async function backToWaitingRoom() {
+  if (!roomCode.value || isUpdatingGame.value) return
+  isUpdatingGame.value = true
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/game/reset`, { method: 'POST' })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not return to the waiting room.')
+    await refreshPlayers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not return to the waiting room.'
+  } finally {
+    isUpdatingGame.value = false
+  }
+}
+
 async function updateWordPool() {
   const word = poolWord.value.trim()
   if (!roomCode.value || !word || gamePhase.value !== 'waiting') return
@@ -474,7 +489,7 @@ onBeforeUnmount(() => {
                   <div class="panel-heading">
                     <div>
                       <span class="panel-kicker">Game</span>
-                      <h2>{{ gamePhase === 'waiting' ? 'Waiting room' : gamePhase === 'word-pick' ? 'Pick a word' : gamePhase === 'drawing' ? `Round ${currentRound} of ${rounds}` : gamePhase === 'round-break' ? 'Next round' : 'Game complete' }}</h2>
+                      <h2>{{ gamePhase === 'waiting' ? 'Waiting room' : gamePhase === 'word-pick' ? 'Pick a word' : gamePhase === 'drawing' ? `Round ${currentRound} of ${rounds}` : gamePhase === 'round-break' ? 'Next round' : 'Final results' }}</h2>
                     </div>
                     <span class="game-time-badge">{{ gamePhase === 'drawing' || gamePhase === 'word-pick' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
                   </div>
@@ -544,11 +559,18 @@ onBeforeUnmount(() => {
                 <div class="drawing-heading">
                   <div>
                     <p class="eyebrow">Canvas</p>
-                      <h2>{{ gamePhase === 'waiting' ? 'Waiting for players' : gamePhase === 'word-pick' ? 'Choose a word to begin' : gamePhase === 'finished' ? 'All rounds complete' : gamePhase === 'round-break' ? 'Get ready' : 'Draw the clue' }}</h2>
+                      <h2>{{ gamePhase === 'waiting' ? 'Waiting for players' : gamePhase === 'word-pick' ? 'Choose a word to begin' : gamePhase === 'finished' ? 'Final audience score' : gamePhase === 'round-break' ? 'Get ready' : 'Draw the clue' }}</h2>
                   </div>
                   <span class="drawing-status"><i></i> {{ gamePhase === 'waiting' ? 'Waiting' : gamePhase === 'finished' ? 'Finished' : gamePhase === 'round-break' ? 'Break' : `${secondsRemaining}s` }}</span>
                 </div>
-                <div v-if="gamePhase === 'round-break'" class="score-reveal-stage">
+                <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
+                  <span class="panel-kicker">Final results</span>
+                  <strong>Final audience score</strong>
+                  <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
+                  <small>Thanks for playing · Final scoring will be connected here soon.</small>
+                  <button type="button" class="back-to-waiting-button" :disabled="isUpdatingGame" @click="backToWaitingRoom">Back to waiting room</button>
+                </div>
+                <div v-else-if="gamePhase === 'round-break'" class="score-reveal-stage">
                   <span class="panel-kicker">Round results</span>
                   <strong>Audience score</strong>
                   <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
