@@ -206,9 +206,6 @@ export function advanceGame(code: string) {
           .reduce((sum, guess) => sum + guess.scoreAwarded, 0),
       }))
       .filter((entry) => entry.score > 0)
-    for (const entry of room.lastRoundScores) {
-      room.scores.set(entry.playerId, (room.scores.get(entry.playerId) ?? 0) + entry.score)
-    }
     if (room.currentRound >= room.settings.rounds) {
       room.phase = 'finished'
       room.phaseStartedAt = Date.now()
@@ -340,6 +337,9 @@ export function addGuess(code: string, playerId: string, sessionToken: string, t
     scoreAwarded,
   }
   room.guesses.push(guess)
+  if (scoreAwarded > 0) {
+    room.scores.set(player.id, (room.scores.get(player.id) ?? 0) + scoreAwarded)
+  }
   return { guess }
 }
 

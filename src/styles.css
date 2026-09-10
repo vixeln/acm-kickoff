@@ -303,6 +303,7 @@ button:disabled {
   color: #34363a;
   overflow-wrap: anywhere;
 }
+.guess-item.correct-guess { color: #176b39; background: #eaf7ee; font-weight: 700; }
 
 .empty-state {
   color: #85878b;

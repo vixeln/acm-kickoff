@@ -8,7 +8,7 @@ import type { DrawingAction } from '../types/drawing'
 const route = useRoute()
 const roomCode = String(route.params.room ?? '').toUpperCase()
 const players = ref<Array<{ id: string; name: string }>>([])
-const guesses = ref<Array<{ id: string; playerName: string; text: string }>>([])
+const guesses = ref<Array<{ id: string; playerName: string; text: string; isCorrect?: boolean; scoreAwarded?: number }>>([])
 const qrCode = ref('')
 const errorMessage = ref('')
 const drawingActions = ref<DrawingAction[]>([])
@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="guess-list host-guesses" aria-live="polite">
               <span v-if="!guesses.length" class="empty-state">Guesses will appear here.</span>
-              <span v-for="item in guesses" :key="item.id" class="guess-item"><b>{{ item.playerName }}</b><br />{{ item.text }}</span>
+              <span v-for="item in guesses" :key="item.id" class="guess-item" :class="{ 'correct-guess': item.isCorrect }"><b>{{ item.playerName }}</b><br />{{ item.isCorrect ? `guessed it! +${item.scoreAwarded ?? 0} points` : item.text }}</span>
             </div>
             <div class="player-list" aria-live="polite">
               <strong>{{ players.length }} player{{ players.length === 1 ? '' : 's' }} joined</strong>

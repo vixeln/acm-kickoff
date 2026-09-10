@@ -8,7 +8,7 @@ const roomCode = computed(() => String(route.query.room ?? ''))
 const playerId = computed(() => String(route.query.player ?? ''))
 const sessionToken = computed(() => String(route.query.token ?? ''))
 const guess = ref('')
-const guesses = ref<Array<{ id: string; text: string; createdAt: number }>>([])
+const guesses = ref<Array<{ id: string; text: string; createdAt: number; isCorrect?: boolean; scoreAwarded?: number }>>([])
 const errorMessage = ref('')
 const sessionEnded = ref(false)
 const isSending = ref(false)
@@ -63,7 +63,7 @@ async function sendGuess() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerId: playerId.value, token: sessionToken.value, text }),
     })
-    const data = (await response.json()) as { error?: string }
+    const data = (await response.json()) as { error?: string; guess?: { scoreAwarded?: number } }
     if (response.status === 404) {
       markSessionEnded()
       return
@@ -72,6 +72,7 @@ async function sendGuess() {
       errorMessage.value = data.error ?? 'Could not send your guess.'
       return
     }
+    score.value += data.guess?.scoreAwarded ?? 0
     guess.value = ''
     await refreshGuesses()
   } catch (error) {
@@ -115,7 +116,7 @@ onBeforeUnmount(() => {
         <div class="guess-list" aria-live="polite">
           <strong>Your guesses</strong>
           <span v-if="!guesses.length" class="empty-state">No guesses yet.</span>
-          <span v-for="item in guesses" :key="item.id" class="guess-item">{{ item.text }}</span>
+          <span v-for="item in guesses" :key="item.id" class="guess-item" :class="{ 'correct-guess': item.isCorrect }">{{ item.isCorrect ? `Correct! +${item.scoreAwarded ?? 0} points` : item.text }}</span>
         </div>
       </template>
       <RouterLink class="text-link" to="/login">Join a different room</RouterLink>
