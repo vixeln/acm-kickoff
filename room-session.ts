@@ -14,6 +14,14 @@ export type Guess = {
   playerName: string
   text: string
   createdAt: number
+  isCorrect: boolean
+  scoreAwarded: number
+}
+
+export type ScoreEntry = {
+  playerId: string
+  playerName: string
+  score: number
 }
 
 export type GamePhase = 'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'
@@ -39,6 +47,8 @@ export type Room = {
   wordPool: string[]
   wordPoolId: number | null
   wordOptions: string[]
+  scores: Map<string, number>
+  lastRoundScores: ScoreEntry[]
 }
 
 const rooms = new Map<string, Room>()
@@ -58,6 +68,10 @@ function publicRoom(room: Room) {
       settings: room.settings,
       currentRound: room.currentRound,
       phaseStartedAt: room.phaseStartedAt,
+      scoreboard: [...room.players.values()]
+        .map((player) => ({ playerId: player.id, playerName: player.name, score: room.scores.get(player.id) ?? 0 }))
+        .sort((a, b) => b.score - a.score || a.playerName.localeCompare(b.playerName)),
+      roundScores: room.lastRoundScores,
     },
   }
 }
@@ -85,6 +99,8 @@ export function createRoom(secretWord = '', wordPool: string[] = developmentWord
     wordPool: [...wordPool],
     wordPoolId,
     wordOptions: [],
+    scores: new Map(),
+    lastRoundScores: [],
   }
   rooms.set(code, room)
   return publicRoom(room)
@@ -139,6 +155,8 @@ export function startGame(code: string) {
   room.currentRound = 1
   room.phaseStartedAt = Date.now()
   room.guesses = []
+  room.scores = new Map()
+  room.lastRoundScores = []
   room.drawingActions = []
   room.drawingPreview = null
   room.wordOptions = room.wordPool.slice().sort(() => Math.random() - 0.5).slice(0, 3)
@@ -152,6 +170,8 @@ export function beginRound(code: string) {
   if (!room.secretWord.trim()) return { error: 'Choose a word before starting the round.' as const }
   room.phase = 'drawing'
   room.phaseStartedAt = Date.now()
+  room.guesses = []
+  room.lastRoundScores = []
   return { room: publicRoom(room) }
 }
 
@@ -162,6 +182,8 @@ export function chooseWord(code: string, word: string) {
   room.secretWord = word
   room.phase = 'drawing'
   room.phaseStartedAt = Date.now()
+  room.guesses = []
+  room.lastRoundScores = []
   return { room: publicRoom(room) }
 }
 
@@ -175,6 +197,18 @@ export function advanceGame(code: string) {
   const room = rooms.get(normalizeRoomCode(code))
   if (!room) return { error: 'That room does not exist.' as const }
   if (room.phase === 'drawing') {
+    room.lastRoundScores = [...room.players.values()]
+      .map((player) => ({
+        playerId: player.id,
+        playerName: player.name,
+        score: room.guesses
+          .filter((guess) => guess.playerId === player.id && guess.isCorrect)
+          .reduce((sum, guess) => sum + guess.scoreAwarded, 0),
+      }))
+      .filter((entry) => entry.score > 0)
+    for (const entry of room.lastRoundScores) {
+      room.scores.set(entry.playerId, (room.scores.get(entry.playerId) ?? 0) + entry.score)
+    }
     if (room.currentRound >= room.settings.rounds) {
       room.phase = 'finished'
       room.phaseStartedAt = Date.now()
@@ -203,6 +237,8 @@ export function resetGame(code: string) {
   room.secretWord = ''
   room.wordOptions = []
   room.guesses = []
+  room.scores = new Map()
+  room.lastRoundScores = []
   room.drawingActions = []
   room.drawingPreview = null
   return { room: publicRoom(room) }
@@ -287,15 +323,35 @@ export function addGuess(code: string, playerId: string, sessionToken: string, t
   if (!guessText) return { error: 'Enter a word guess.' as const }
   if (guessText.length > 80) return { error: 'Guesses must be 80 characters or fewer.' as const }
 
+  const isCorrect = room.phase === 'drawing' && normalizeGuess(guessText) === normalizeGuess(room.secretWord)
+  const alreadyScored = room.guesses.some((item) => item.playerId === player.id && item.isCorrect)
+  // The bonus belongs to the first player who solves the round, not to every player's first guess.
+  const firstPlayerToGuessCorrectly = isCorrect && !room.guesses.some((item) => item.isCorrect)
+  const baseScore = isCorrect && !alreadyScored ? scoreForElapsedTime(room, Date.now()) : 0
+  const scoreAwarded = firstPlayerToGuessCorrectly ? Math.round(baseScore * 1.5) : baseScore
+
   const guess = {
     id: randomUUID(),
     playerId: player.id,
     playerName: player.name,
     text: guessText,
     createdAt: Date.now(),
+    isCorrect,
+    scoreAwarded,
   }
   room.guesses.push(guess)
   return { guess }
+}
+
+function normalizeGuess(value: string) {
+  return value.trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')
+}
+
+/** Smooth exponential score: 400 at the start, approximately 50 at round end. */
+export function scoreForElapsedTime(room: Room, now = Date.now()) {
+  const elapsed = Math.max(0, Math.min(room.settings.drawingTime, (now - (room.phaseStartedAt ?? now)) / 1000))
+  const normalizedTime = elapsed / room.settings.drawingTime
+  return Math.max(50, Math.round(50 + 350 * Math.exp(-8 * normalizedTime ** 4)))
 }
 
 export function getPlayerGuesses(code: string, playerId: string, sessionToken: string) {

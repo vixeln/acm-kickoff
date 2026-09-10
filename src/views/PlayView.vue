@@ -15,6 +15,8 @@ const isSending = ref(false)
 const gamePhase = ref<'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'>('waiting')
 const currentRound = ref(0)
 const totalRounds = ref(3)
+const score = ref(0)
+const roundScore = ref(0)
 let guessesPoll: ReturnType<typeof setInterval> | undefined
 
 function markSessionEnded() {
@@ -39,11 +41,13 @@ async function refreshGuesses() {
   guesses.value = data.guesses
   const roomResponse = await fetch(`/api/rooms/${encodeURIComponent(roomCode.value)}`)
   if (roomResponse.ok) {
-    const roomData = (await roomResponse.json()) as { room: { game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number } } } }
+    const roomData = (await roomResponse.json()) as { room: { game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number }; scoreboard?: Array<{ playerId: string; score: number }>; roundScores?: Array<{ playerId: string; score: number }> } } }
     if (roomData.room.game) {
       gamePhase.value = roomData.room.game.phase
       currentRound.value = roomData.room.game.currentRound
       totalRounds.value = roomData.room.game.settings.rounds
+      score.value = roomData.room.game.scoreboard?.find((player) => player.playerId === playerId.value)?.score ?? 0
+      roundScore.value = roomData.room.game.roundScores?.find((player) => player.playerId === playerId.value)?.score ?? 0
     }
   }
 }
@@ -98,7 +102,8 @@ onBeforeUnmount(() => {
       </template>
       <template v-else>
         <h1 id="connected-title">You're in, {{ playerName }}.</h1>
-        <p class="subtitle">{{ gamePhase === 'waiting' ? 'The host is getting the game ready.' : gamePhase === 'word-pick' ? 'The host is choosing a word for the round.' : gamePhase === 'finished' ? 'Final audience scores are being shown.' : gamePhase === 'round-break' ? 'Get ready for the next round.' : `Round ${currentRound} of ${totalRounds} is live. Send your guesses below.` }}</p>
+        <p class="subtitle">{{ gamePhase === 'waiting' ? 'The host is getting the game ready.' : gamePhase === 'word-pick' ? 'The host is choosing a word for the round.' : gamePhase === 'finished' ? 'Final scores are being shown.' : gamePhase === 'round-break' ? 'Round results are in.' : `Round ${currentRound} of ${totalRounds} is live. Send your guesses below.` }}</p>
+        <div class="player-score" aria-live="polite"><span>Your score</span><strong>{{ score }}</strong><small v-if="gamePhase === 'round-break' || gamePhase === 'finished'">+{{ roundScore }} this round</small></div>
         <form class="guess-form" @submit.prevent="sendGuess">
           <label for="guess">Your word guess</label>
           <div class="guess-entry">

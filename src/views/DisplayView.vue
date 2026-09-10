@@ -16,6 +16,8 @@ const drawingPreview = ref<DrawingAction | null>(null)
 const gamePhase = ref<'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'>('waiting')
 const currentRound = ref(0)
 const rounds = ref(3)
+const scoreboard = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
+const roundScores = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
 let latestDrawingSequence = -1
 let drawingSocket: WebSocket | undefined
 let roomPoll: ReturnType<typeof setInterval> | undefined
@@ -27,12 +29,14 @@ async function refreshRoom() {
     errorMessage.value = 'That room is not available.'
     return
   }
-  const data = (await response.json()) as { room: { players: typeof players.value; game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number } } } }
+  const data = (await response.json()) as { room: { players: typeof players.value; game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number }; scoreboard?: typeof scoreboard.value; roundScores?: typeof roundScores.value } } }
   players.value = data.room.players
   if (data.room.game) {
     gamePhase.value = data.room.game.phase
     currentRound.value = data.room.game.currentRound
     rounds.value = data.room.game.settings.rounds
+    scoreboard.value = data.room.game.scoreboard ?? []
+    roundScores.value = data.room.game.roundScores ?? []
   }
   const guessesResponse = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/guesses?role=display`)
   if (guessesResponse.ok) {
@@ -136,14 +140,14 @@ onBeforeUnmount(() => {
             <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
               <span class="panel-kicker">Final results</span>
               <strong>Final audience score</strong>
-              <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
-              <small>Thanks for playing · Final scoring will be connected here soon.</small>
+              <div class="scoreboard-list" aria-live="polite"><div v-for="player in scoreboard" :key="player.playerId"><span>{{ player.playerName }}</span><strong>{{ player.score }}</strong></div></div>
+              <small>Thanks for playing</small>
             </div>
             <div v-else-if="gamePhase === 'round-break'" class="score-reveal-stage">
               <span class="panel-kicker">Round results</span>
               <strong>Audience score</strong>
-              <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
-              <small>Scoring will be connected here soon.</small>
+              <div class="scoreboard-list" aria-live="polite"><div v-for="player in scoreboard" :key="player.playerId"><span>{{ player.playerName }}</span><strong>{{ player.score }} <em v-if="roundScores.find((entry) => entry.playerId === player.playerId)">(+{{ roundScores.find((entry) => entry.playerId === player.playerId)?.score }})</em></strong></div></div>
+              <small>Round {{ currentRound }} complete</small>
             </div>
             <DrawingCanvas v-else :model-value="drawingActions" :preview="drawingPreview" readonly />
           </section>

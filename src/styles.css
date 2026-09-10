@@ -1035,6 +1035,14 @@ button:disabled {
 .score-transition { display: flex; align-items: center; gap: 18px; color: #f3c969; font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 900; }
 .score-transition b { color: #85878b; font-size: 0.6em; animation: score-arrow-pulse 900ms ease-in-out infinite alternate; }
 .score-transition span:last-child { animation: score-number-pop 900ms ease-out both; }
+.player-score { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 12px; margin: 18px 0; padding: 14px 16px; border: 1px solid rgb(32 33 36 / 10%); border-radius: 12px; background: #f7f4ee; }
+.player-score span { color: #85878b; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+.player-score strong { color: #202124; font-size: 2rem; line-height: 1; }
+.player-score small { grid-column: 1 / -1; color: #218c4c; }
+.scoreboard-list { display: grid; width: min(100%, 520px); gap: 8px; margin: 14px 0; text-align: left; }
+.scoreboard-list div { display: flex; justify-content: space-between; gap: 20px; padding: 10px 14px; border-bottom: 1px solid rgb(255 255 255 / 12%); color: white; }
+.scoreboard-list strong { color: #f3c969; }
+.scoreboard-list em { color: #a9d8b8; font-size: .7em; font-style: normal; font-weight: 500; }
 .final-score-stage { min-height: 460px; border-color: rgb(243 201 105 / 30%); box-shadow: inset 0 0 80px rgb(243 201 105 / 7%); }
 .final-score-stage strong { font-size: clamp(1.7rem, 4vw, 3rem); }
 .back-to-waiting-button { margin: 14px 0 0; color: #202124; background: white; }
