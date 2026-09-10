@@ -100,7 +100,7 @@ function handleDevWebSocketUpgrade(request: IncomingMessage, socket: Socket) {
       else setDrawingPreview(roomCode, payload.action)
       for (const peer of clients) {
         if (peer.role === 'display') sendDevWebSocket(peer.socket, payload.type === 'drawing-state'
-          ? { type: 'drawing-state', actions: payload.actions, preview: null }
+          ? { type: 'drawing-state', actions: payload.actions, preview: null, sequence: payload.sequence }
           : payload)
       }
     }

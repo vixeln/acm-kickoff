@@ -415,7 +415,7 @@ const server = Bun.serve<SocketData>({
         if (!setDrawingState(socket.data.roomCode, payload.actions)) return
       } else if (!setDrawingPreview(socket.data.roomCode, payload.action)) return
       const outgoing = JSON.stringify(payload.type === 'drawing-state'
-        ? { type: 'drawing-state', actions: payload.actions, preview: null }
+        ? { type: 'drawing-state', actions: payload.actions, preview: null, sequence: payload.sequence }
         : payload)
       drawingSockets.get(socket.data.roomCode)?.forEach((peer) => {
         if (peer !== socket && peer.data.role === 'display') peer.send(outgoing)
