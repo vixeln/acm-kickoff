@@ -8,7 +8,7 @@ import {
   deleteRoom,
   getAllGuesses,
   getHostRoom,
-  getPlayerGuesses,
+  getVisibleGuesses,
   getRoom,
   joinRoom,
   removePlayer,
@@ -490,7 +490,7 @@ const server = Bun.serve<SocketData>({
         return guesses ? json({ guesses }) : json({ error: 'That room does not exist.' }, { status: 404 })
       }
 
-      const guesses = getPlayerGuesses(
+      const guesses = getVisibleGuesses(
         code,
         url.searchParams.get('player') ?? '',
         url.searchParams.get('token') ?? '',

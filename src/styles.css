@@ -1110,6 +1110,11 @@ button:disabled {
   font-size: 0.82rem;
   line-height: 1.4;
 }
+.host-panel .guess-item.correct-guess {
+  border-color: #b9dfc4;
+  background: #eaf7ee;
+  color: #176b39;
+}
 
 .host-panel .player-list {
   justify-items: start;

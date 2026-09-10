@@ -361,7 +361,30 @@ export function getPlayerGuesses(code: string, playerId: string, sessionToken: s
   return room.guesses.filter((guess) => guess.playerId === playerId)
 }
 
+/** Returns the shared player chat with answer leakage prevented for unsolved players. */
+export function getVisibleGuesses(code: string, playerId: string, sessionToken: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room || room.players.get(playerId)?.sessionToken !== sessionToken) return null
+
+  const viewerSolved = room.guesses.some((guess) => guess.playerId === playerId && guess.isCorrect)
+  const solvedPlayers = new Set(
+    room.guesses.filter((guess) => guess.isCorrect).map((guess) => guess.playerId),
+  )
+
+  return room.guesses.map((guess) => {
+    const playerHasSolved = solvedPlayers.has(guess.playerId)
+    const shouldObfuscate = !viewerSolved && playerHasSolved
+    return {
+      ...guess,
+      playerHasSolved,
+      ...(shouldObfuscate ? { text: guess.text.replace(/\S/g, '-') } : {}),
+    }
+  })
+}
+
 export function getAllGuesses(code: string) {
   const room = rooms.get(normalizeRoomCode(code))
-  return room?.guesses ?? null
+  if (!room) return null
+  const solvedPlayers = new Set(room.guesses.filter((guess) => guess.isCorrect).map((guess) => guess.playerId))
+  return room.guesses.map((guess) => ({ ...guess, playerHasSolved: solvedPlayers.has(guess.playerId) }))
 }
