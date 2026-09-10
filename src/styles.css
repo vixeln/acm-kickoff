@@ -831,6 +831,12 @@ button:disabled {
 
 .start-game-button { background: #218c4c; }
 .start-game-button:hover { background: #176b39; }
+.dev-panel-toggle { margin: 8px 0 0; padding: 8px 10px; color: #85878b; background: transparent; border: 1px solid #d8d4cb; font-size: .72rem; }
+.dev-panel-toggle:hover { color: #202124; background: #f4f1ea; }
+.dev-panel { display: grid; gap: 14px; }
+.dev-panel-section { display: grid; gap: 5px; padding-top: 12px; border-top: 1px solid #e4e0d7; font-size: .78rem; }
+.dev-panel-section > span:not(.panel-kicker) { color: #85878b; }
+.dev-panel-section .text-link { margin-top: 3px; font-size: .72rem; }
 .skip-round-button { color: #a23b2a; background: #fff5f2; border: 1px solid #e8b8ac; }
 .skip-round-button:hover { background: #ffe8e1; }
 
