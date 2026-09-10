@@ -73,6 +73,7 @@ Wi-Fi.
 | `PORT` | Railway supplies it | HTTP port; defaults to `8080` locally |
 | `HOST_PASSWORD` | Public deployment | Password accepted by the host login endpoint |
 | `HOST_SESSION_SECRET` | Recommended | Secret used to sign host sessions; falls back to `HOST_PASSWORD` |
+| `DATABASE_URL` | Required for persistence | PostgreSQL connection URL used for the shared word pool |
 
 Use long, unrelated values for the password and session secret. Generate a session secret
 with:
@@ -86,10 +87,13 @@ openssl rand -base64 32
 1. Connect this repository to a Railway service.
 2. Add `HOST_PASSWORD` and `HOST_SESSION_SECRET` to that service's Variables tab in the same
    Railway environment as the public domain.
-3. Apply the staged variable changes so Railway creates a new deployment.
-4. Generate a domain under **Networking → Public Networking**.
-5. Keep the service at one replica while application state remains in process memory.
-6. Open `https://<domain>/host` to host; players use the root URL or QR code.
+3. Provision a PostgreSQL database and set `DATABASE_URL` on the application service to its
+   connection URL.
+4. Apply the staged variable changes so Railway creates a new deployment. The app creates its
+   `word_pool` table automatically on startup.
+5. Generate a domain under **Networking → Public Networking**.
+6. Keep the service at one replica while room and WebSocket state remains in process memory.
+7. Open `https://<domain>/host` to host; players use the root URL or QR code.
 
 The [Dockerfile](Dockerfile) builds the Vue bundle and runs the Bun server as an unprivileged
 user. [railway.json](railway.json) configures `/health` as the deployment readiness check.
@@ -101,5 +105,6 @@ the application service and current Railway environment, then deploy the staged 
 
 The repository provides routing, player entry UI, host authentication, QR joining, room creation,
 server-side room membership, a host player list, static serving, and a WebSocket upgrade endpoint.
-Room state is held in memory by the Bun process, so keep Railway at one replica. The real-time game
-message protocol is still open for the gameplay implementation.
+Room state is held in memory by the Bun process, so keep Railway at one replica. The deployment-wide
+word pool is persisted in PostgreSQL when `DATABASE_URL` is configured. The real-time game message
+protocol is still open for the gameplay implementation.

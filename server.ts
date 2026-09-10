@@ -25,6 +25,7 @@ import {
   setWordPool,
 } from './room-session'
 import type { DrawingAction, Point } from './src/types/drawing'
+import { initializeWordPoolStore, loadWordPool, saveWordPool } from './word-pool-store'
 
 type SocketData = {
   playerId?: string
@@ -48,6 +49,8 @@ const hostSessionDurationSeconds = 12 * 60 * 60
 const loginWindowMilliseconds = 15 * 60 * 1000
 const maximumLoginAttempts = 5
 const drawingSockets = new Map<string, Set<Bun.ServerWebSocket<SocketData>>>()
+
+await initializeWordPoolStore()
 
 if (Bun.env.RAILWAY_ENVIRONMENT_ID && !hostPassword) {
   console.warn('HOST_PASSWORD is not configured; public host access will remain locked.')
@@ -257,7 +260,8 @@ const server = Bun.serve<SocketData>({
       if (!isHostAuthorized(request, bunServer)) {
         return json({ error: 'Host authentication required.' }, { status: 401 })
       }
-      return json({ room: createRoom() }, { status: 201 })
+      const wordPool = await loadWordPool()
+      return json({ room: createRoom('', wordPool) }, { status: 201 })
     }
 
     const endRoomMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
@@ -342,8 +346,11 @@ const server = Bun.serve<SocketData>({
       try { const body = (await request.json()) as { words?: unknown }; words = body.words } catch {
         return json({ error: 'Invalid request.' }, { status: 400 })
       }
-      const result = setWordPool(wordPoolMatch[1], Array.isArray(words) ? words.filter((word): word is string => typeof word === 'string') : [])
-      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+      const requestedWords = Array.isArray(words) ? words.filter((word): word is string => typeof word === 'string') : []
+      const result = setWordPool(wordPoolMatch[1], requestedWords)
+      if ('error' in result) return json({ error: result.error }, { status: 400 })
+      await saveWordPool(result.room.wordPool)
+      return json(result)
     }
 
     const advanceGameMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/advance$/i)

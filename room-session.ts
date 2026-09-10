@@ -60,7 +60,7 @@ function publicRoom(room: Room) {
   }
 }
 
-export function createRoom(secretWord = '') {
+export function createRoom(secretWord = '', wordPool: string[] = []) {
   let code = ''
   do {
     code = Array.from({ length: 4 }, () =>
@@ -80,7 +80,7 @@ export function createRoom(secretWord = '') {
     settings: { drawingTime: 60, rounds: 3, wordPickTime: 15 },
     currentRound: 0,
     phaseStartedAt: null,
-    wordPool: [],
+    wordPool: [...wordPool],
     wordOptions: [],
   }
   rooms.set(code, room)
@@ -95,7 +95,7 @@ export function setWordPool(code: string, words: string[]) {
   if (cleaned.some((word) => word.length > 80)) return { error: 'Words must be 80 characters or fewer.' as const }
   if (cleaned.length > 100) return { error: 'The word pool can contain up to 100 words.' as const }
   room.wordPool = cleaned
-  return { room: publicRoom(room) }
+  return { room: { ...publicRoom(room), wordPool: [...room.wordPool] } }
 }
 
 export function setGameSettings(code: string, settings: Partial<GameSettings>) {

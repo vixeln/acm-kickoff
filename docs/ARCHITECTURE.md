@@ -11,15 +11,16 @@ Host browser ── HTTP/cookie ──┐
 Player browsers ─ WebSocket ─┘
 ```
 
-There is no database or external session store. Authentication throttles, future room state,
-and active WebSocket connections therefore belong to one Bun process.
+PostgreSQL stores the deployment-wide word library when `DATABASE_URL` is configured. Active room
+state, authentication throttles, and WebSocket connections remain in one Bun process.
 
 ## Source map
 
 | Path | Responsibility |
 | --- | --- |
 | `server.ts` | HTTP routing, host authentication, room API, static files, health check, and WebSockets |
-| `room-session.ts` | In-memory room creation, lookup, player membership, and guesses |
+| `room-session.ts` | In-memory room creation, lookup, player membership, guesses, and room word snapshots |
+| `word-pool-store.ts` | PostgreSQL-backed deployment-wide word library |
 | `lan.ts` | Discovers and ranks usable local IPv4 addresses |
 | `src/main.ts` | Creates and mounts the Vue application |
 | `src/router.ts` | Selects the host/player entry route and defines client routes |
@@ -236,7 +237,10 @@ Before scaling horizontally:
 - Replace the in-memory login throttle with a shared limiter.
 - Decide how active games recover from deploys and server restarts.
 
-No volume is currently required because the service intentionally writes no persistent files.
+The word library is stored in PostgreSQL in the `word_pool` table. A new room receives a snapshot of
+the current library, so edits affect newly created rooms without changing an active game. The server
+creates the table automatically on startup. Without `DATABASE_URL`, the app continues to run using
+an in-memory pool for local development, with a warning in the server log.
 
 ## Security notes
 
