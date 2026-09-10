@@ -275,10 +275,10 @@ async function removePoolWord(word: string) {
 
 function updateCountdown() {
   if ((gamePhase.value !== 'drawing' && gamePhase.value !== 'round-break') || !phaseStartedAt.value) {
-    secondsRemaining.value = gamePhase.value === 'round-break' ? 5 : drawingTime.value
+    secondsRemaining.value = gamePhase.value === 'round-break' ? 20 : drawingTime.value
     return
   }
-  const phaseDuration = gamePhase.value === 'round-break' ? 5 : drawingTime.value
+  const phaseDuration = gamePhase.value === 'round-break' ? 20 : drawingTime.value
   secondsRemaining.value = Math.max(0, phaseDuration - Math.floor((Date.now() - phaseStartedAt.value) / 1000))
   if (secondsRemaining.value === 0 && !isUpdatingGame.value) advanceRound()
 }
@@ -533,7 +533,13 @@ onBeforeUnmount(() => {
                   </div>
                   <span class="drawing-status"><i></i> {{ gamePhase === 'waiting' ? 'Waiting' : gamePhase === 'finished' ? 'Finished' : gamePhase === 'round-break' ? 'Break' : `${secondsRemaining}s` }}</span>
                 </div>
-                <div v-if="gamePhase === 'word-pick'" class="word-pick-stage">
+                <div v-if="gamePhase === 'round-break'" class="score-reveal-stage">
+                  <span class="panel-kicker">Round results</span>
+                  <strong>Audience score</strong>
+                  <div class="score-transition" :key="currentRound"><span>0</span><b>→</b><span>0</span></div>
+                  <small>Scoring will be connected here soon.</small>
+                </div>
+                <div v-else-if="gamePhase === 'word-pick'" class="word-pick-stage">
                   <span class="word-pick-stage-icon">✦</span>
                   <strong>Pick one word for the players to guess</strong>
                   <span>Enter the round word in the Game settings card.</span>

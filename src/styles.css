@@ -980,6 +980,36 @@ button:disabled {
 .word-pick-stage strong { color: #202124; font-size: 1.1rem; }
 .word-pick-stage-icon { color: #d65a31; font-size: 2rem; }
 
+.score-reveal-stage {
+  display: grid;
+  min-height: 340px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 40px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 14px;
+  color: #85878b;
+  background: #202329;
+  text-align: center;
+}
+
+.score-reveal-stage strong { color: white; font-size: clamp(1.3rem, 3vw, 2rem); }
+.score-reveal-stage small { color: #85878b; }
+.score-transition { display: flex; align-items: center; gap: 18px; color: #f3c969; font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 900; }
+.score-transition b { color: #85878b; font-size: 0.6em; animation: score-arrow-pulse 900ms ease-in-out infinite alternate; }
+.score-transition span:last-child { animation: score-number-pop 900ms ease-out both; }
+
+@keyframes score-arrow-pulse {
+  from { opacity: 0.45; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(4px); }
+}
+
+@keyframes score-number-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .host-panel {
   position: sticky;
   top: 24px;
