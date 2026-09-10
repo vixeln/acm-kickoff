@@ -319,7 +319,10 @@ const server = Bun.serve<SocketData>({
         if (!normalized.length) return json({ error: 'The import did not contain any categories.' }, { status: 400 })
         await mergeWordPools(normalized, body.mode === 'replace-all')
         return json({ pools: await listWordPools() })
-      } catch { return json({ error: 'Could not import the word pools.' }, { status: 400 }) }
+      } catch (error) {
+        console.error('Word pool import failed:', error)
+        return json({ error: 'Could not import the word pools. Check the server logs.' }, { status: 500 })
+      }
     }
 
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
