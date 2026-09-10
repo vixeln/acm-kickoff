@@ -25,6 +25,7 @@ const isUpdatingGame = ref(false)
 const gamePhase = ref<'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'>('waiting')
 const drawingTime = ref(60)
 const rounds = ref(3)
+const wordPickTime = ref(15)
 const currentRound = ref(0)
 const phaseStartedAt = ref<number | null>(null)
 const developerMode = ref(false)
@@ -160,22 +161,24 @@ async function refreshPlayers() {
   if (!roomCode.value) return
   const response = await fetch(`/api/rooms/${roomCode.value}`)
   if (!response.ok) return
-  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }>; game?: { phase: typeof gamePhase.value; settings: { drawingTime: number; rounds: number }; currentRound: number; phaseStartedAt: number | null } } }
+  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }>; game?: { phase: typeof gamePhase.value; settings: { drawingTime: number; rounds: number; wordPickTime: number }; currentRound: number; phaseStartedAt: number | null } } }
   players.value = data.room.players
   if (data.room.game) {
     gamePhase.value = data.room.game.phase
     drawingTime.value = data.room.game.settings.drawingTime
     rounds.value = data.room.game.settings.rounds
+    wordPickTime.value = data.room.game.settings.wordPickTime
     currentRound.value = data.room.game.currentRound
     phaseStartedAt.value = data.room.game.phaseStartedAt
   }
   const hostStateResponse = await fetch(`/api/rooms/${roomCode.value}/host-state`)
   if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'round-word') {
-    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string; wordPool?: string[]; wordOptions?: string[] } }
+    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string; wordPool?: string[]; wordOptions?: string[]; game?: { settings: { wordPickTime: number } } } }
     secretWord.value = hostState.room.secretWord
     savedSecretWord.value = hostState.room.secretWord
     wordPool.value = hostState.room.wordPool ?? []
     wordOptions.value = hostState.room.wordOptions ?? []
+    if (hostState.room.game) wordPickTime.value = hostState.room.game.settings.wordPickTime
   }
   const guessesResponse = await fetch(`/api/rooms/${roomCode.value}/guesses?role=host`)
   if (guessesResponse.ok) {
@@ -191,7 +194,7 @@ async function saveGameSettings() {
   try {
     const response = await fetch(`/api/rooms/${roomCode.value}/game`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ drawingTime: drawingTime.value, rounds: rounds.value }),
+      body: JSON.stringify({ drawingTime: drawingTime.value, rounds: rounds.value, wordPickTime: wordPickTime.value }),
     })
     const data = (await response.json()) as { error?: string }
     if (!response.ok) throw new Error(data.error ?? 'Could not save game settings.')
@@ -252,6 +255,11 @@ async function chooseWord(word: string) {
   }
 }
 
+async function chooseRandomWord() {
+  const word = wordOptions.value[Math.floor(Math.random() * wordOptions.value.length)]
+  if (word) await chooseWord(word)
+}
+
 async function updateWordPool() {
   const word = poolWord.value.trim()
   if (!roomCode.value || !word || gamePhase.value !== 'waiting') return
@@ -274,13 +282,16 @@ async function removePoolWord(word: string) {
 }
 
 function updateCountdown() {
-  if ((gamePhase.value !== 'drawing' && gamePhase.value !== 'round-break') || !phaseStartedAt.value) {
-    secondsRemaining.value = gamePhase.value === 'round-break' ? 20 : drawingTime.value
+  if ((gamePhase.value !== 'drawing' && gamePhase.value !== 'round-break' && gamePhase.value !== 'word-pick') || !phaseStartedAt.value) {
+    secondsRemaining.value = gamePhase.value === 'round-break' ? 20 : gamePhase.value === 'word-pick' ? wordPickTime.value : drawingTime.value
     return
   }
-  const phaseDuration = gamePhase.value === 'round-break' ? 20 : drawingTime.value
+  const phaseDuration = gamePhase.value === 'word-pick' ? wordPickTime.value : gamePhase.value === 'round-break' ? 20 : drawingTime.value
   secondsRemaining.value = Math.max(0, phaseDuration - Math.floor((Date.now() - phaseStartedAt.value) / 1000))
-  if (secondsRemaining.value === 0 && !isUpdatingGame.value) advanceRound()
+  if (secondsRemaining.value === 0 && !isUpdatingGame.value) {
+    if (gamePhase.value === 'word-pick') chooseRandomWord()
+    else advanceRound()
+  }
 }
 
 async function saveSecretWord() {
@@ -465,7 +476,7 @@ onBeforeUnmount(() => {
                       <span class="panel-kicker">Game</span>
                       <h2>{{ gamePhase === 'waiting' ? 'Waiting room' : gamePhase === 'word-pick' ? 'Pick a word' : gamePhase === 'drawing' ? `Round ${currentRound} of ${rounds}` : gamePhase === 'round-break' ? 'Next round' : 'Game complete' }}</h2>
                     </div>
-                    <span class="game-time-badge">{{ gamePhase === 'drawing' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
+                    <span class="game-time-badge">{{ gamePhase === 'drawing' || gamePhase === 'word-pick' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
                   </div>
                   <div v-if="gamePhase === 'waiting'" class="word-pick-form">
                     <label for="pool-word">Word pool</label>
@@ -492,6 +503,10 @@ onBeforeUnmount(() => {
                     <label for="round-count">Rounds</label>
                     <select id="round-count" v-model.number="rounds" :disabled="gamePhase !== 'waiting'" @change="saveGameSettings">
                       <option v-for="count in [1, 2, 3, 4, 5, 6]" :key="count" :value="count">{{ count }}</option>
+                    </select>
+                    <label for="word-pick-time">Pick time</label>
+                    <select id="word-pick-time" v-model.number="wordPickTime" :disabled="gamePhase !== 'waiting'" @change="saveGameSettings">
+                      <option :value="10">10 sec</option><option :value="15">15 sec</option><option :value="20">20 sec</option><option :value="30">30 sec</option>
                     </select>
                     <label class="developer-toggle"><input v-model="developerMode" type="checkbox" /> Dev mode</label>
                   </div>

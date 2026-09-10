@@ -21,6 +21,7 @@ export type GamePhase = 'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'f
 export type GameSettings = {
   drawingTime: number
   rounds: number
+  wordPickTime: number
 }
 
 export type Room = {
@@ -76,7 +77,7 @@ export function createRoom(secretWord = '') {
     drawingActions: [],
     drawingPreview: null,
     phase: 'waiting',
-    settings: { drawingTime: 60, rounds: 3 },
+    settings: { drawingTime: 60, rounds: 3, wordPickTime: 15 },
     currentRound: 0,
     phaseStartedAt: null,
     wordPool: [],
@@ -103,13 +104,17 @@ export function setGameSettings(code: string, settings: Partial<GameSettings>) {
   if (room.phase !== 'waiting') return { error: 'Game settings can only be changed while waiting.' as const }
   const drawingTime = Number(settings.drawingTime)
   const rounds = Number(settings.rounds)
+  const wordPickTime = Number(settings.wordPickTime)
   if (!Number.isInteger(drawingTime) || drawingTime < 15 || drawingTime > 600) {
     return { error: 'Drawing time must be between 15 and 600 seconds.' as const }
   }
   if (!Number.isInteger(rounds) || rounds < 1 || rounds > 20) {
     return { error: 'Rounds must be between 1 and 20.' as const }
   }
-  room.settings = { drawingTime, rounds }
+  if (!Number.isInteger(wordPickTime) || wordPickTime < 5 || wordPickTime > 60) {
+    return { error: 'Word-pick time must be between 5 and 60 seconds.' as const }
+  }
+  room.settings = { drawingTime, rounds, wordPickTime }
   return { room: publicRoom(room) }
 }
 
@@ -146,6 +151,12 @@ export function chooseWord(code: string, word: string) {
   room.phase = 'drawing'
   room.phaseStartedAt = Date.now()
   return { room: publicRoom(room) }
+}
+
+export function getRandomWordOption(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room || room.phase !== 'word-pick' || !room.wordOptions.length) return null
+  return room.wordOptions[Math.floor(Math.random() * room.wordOptions.length)] ?? null
 }
 
 export function advanceGame(code: string) {

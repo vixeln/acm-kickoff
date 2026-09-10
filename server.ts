@@ -293,13 +293,14 @@ const server = Bun.serve<SocketData>({
       if (!isHostAuthorized(request, bunServer)) {
         return json({ error: 'Host authentication required.' }, { status: 401 })
       }
-      let body: { drawingTime?: unknown; rounds?: unknown } = {}
+      let body: { drawingTime?: unknown; rounds?: unknown; wordPickTime?: unknown } = {}
       try { body = (await request.json()) as typeof body } catch {
         return json({ error: 'Invalid request.' }, { status: 400 })
       }
       const result = setGameSettings(gameMatch[1], {
         drawingTime: Number(body.drawingTime),
         rounds: Number(body.rounds),
+        wordPickTime: Number(body.wordPickTime),
       })
       return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
     }

@@ -192,10 +192,11 @@ function installNetworkInfoMiddleware(
       request.on('data', (chunk: Buffer) => (body += chunk.toString()))
       request.on('end', () => {
         try {
-          const parsed = JSON.parse(body) as { drawingTime?: unknown; rounds?: unknown }
+          const parsed = JSON.parse(body) as { drawingTime?: unknown; rounds?: unknown; wordPickTime?: unknown }
           const result = setGameSettings(gameMatch[1], {
             drawingTime: Number(parsed.drawingTime),
             rounds: Number(parsed.rounds),
+            wordPickTime: Number(parsed.wordPickTime),
           })
           send('error' in result ? 400 : 200, 'error' in result ? { error: result.error } : result)
         } catch {
