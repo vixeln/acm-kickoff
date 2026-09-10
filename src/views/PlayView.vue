@@ -12,6 +12,9 @@ const guesses = ref<Array<{ id: string; text: string; createdAt: number }>>([])
 const errorMessage = ref('')
 const sessionEnded = ref(false)
 const isSending = ref(false)
+const gamePhase = ref<'waiting' | 'drawing' | 'round-break' | 'finished'>('waiting')
+const currentRound = ref(0)
+const totalRounds = ref(3)
 let guessesPoll: ReturnType<typeof setInterval> | undefined
 
 function markSessionEnded() {
@@ -34,6 +37,15 @@ async function refreshGuesses() {
   if (!response.ok) return
   const data = (await response.json()) as { guesses: typeof guesses.value }
   guesses.value = data.guesses
+  const roomResponse = await fetch(`/api/rooms/${encodeURIComponent(roomCode.value)}`)
+  if (roomResponse.ok) {
+    const roomData = (await roomResponse.json()) as { room: { game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number } } } }
+    if (roomData.room.game) {
+      gamePhase.value = roomData.room.game.phase
+      currentRound.value = roomData.room.game.currentRound
+      totalRounds.value = roomData.room.game.settings.rounds
+    }
+  }
 }
 
 async function sendGuess() {
@@ -86,7 +98,7 @@ onBeforeUnmount(() => {
       </template>
       <template v-else>
         <h1 id="connected-title">You're in, {{ playerName }}.</h1>
-        <p class="subtitle">Send a word guess below. Only you can see your guesses.</p>
+        <p class="subtitle">{{ gamePhase === 'waiting' ? 'The host is getting the game ready.' : gamePhase === 'finished' ? 'The game is complete.' : gamePhase === 'round-break' ? 'Get ready for the next round.' : `Round ${currentRound} of ${totalRounds} is live. Send your guesses below.` }}</p>
         <form class="guess-form" @submit.prevent="sendGuess">
           <label for="guess">Your word guess</label>
           <div class="guess-entry">

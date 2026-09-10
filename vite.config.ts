@@ -19,6 +19,9 @@ import {
   joinRoom,
   setDrawingPreview,
   setDrawingState,
+  setGameSettings,
+  startGame,
+  advanceGame,
 } from './room-session.ts'
 import type { DrawingAction } from './src/types/drawing'
 
@@ -143,6 +146,9 @@ function installNetworkInfoMiddleware(
     const roomMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
     const joinMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/players$/i)
     const guessesMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/guesses$/i)
+    const gameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game$/i)
+    const startGameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/start$/i)
+    const advanceGameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/advance$/i)
     const send = (status: number, data: unknown) => {
       response.statusCode = status
       response.setHeader('Content-Type', 'application/json')
@@ -152,6 +158,33 @@ function installNetworkInfoMiddleware(
 
     if (request.method === 'POST' && path === '/api/rooms') {
       send(201, { room: createRoom() })
+      return
+    }
+    if (request.method === 'PUT' && gameMatch) {
+      let body = ''
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()))
+      request.on('end', () => {
+        try {
+          const parsed = JSON.parse(body) as { drawingTime?: unknown; rounds?: unknown }
+          const result = setGameSettings(gameMatch[1], {
+            drawingTime: Number(parsed.drawingTime),
+            rounds: Number(parsed.rounds),
+          })
+          send('error' in result ? 400 : 200, 'error' in result ? { error: result.error } : result)
+        } catch {
+          send(400, { error: 'Invalid request.' })
+        }
+      })
+      return
+    }
+    if (request.method === 'POST' && startGameMatch) {
+      const result = startGame(startGameMatch[1])
+      send('error' in result ? 400 : 200, result)
+      return
+    }
+    if (request.method === 'POST' && advanceGameMatch) {
+      const result = advanceGame(advanceGameMatch[1])
+      send('error' in result ? 400 : 200, result)
       return
     }
     const endRoomMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)

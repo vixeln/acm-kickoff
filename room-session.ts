@@ -16,6 +16,13 @@ export type Guess = {
   createdAt: number
 }
 
+export type GamePhase = 'waiting' | 'drawing' | 'round-break' | 'finished'
+
+export type GameSettings = {
+  drawingTime: number
+  rounds: number
+}
+
 export type Room = {
   code: string
   createdAt: number
@@ -24,6 +31,10 @@ export type Room = {
   guesses: Guess[]
   drawingActions: DrawingAction[]
   drawingPreview: DrawingAction | null
+  phase: GamePhase
+  settings: GameSettings
+  currentRound: number
+  phaseStartedAt: number | null
 }
 
 const rooms = new Map<string, Room>()
@@ -37,6 +48,12 @@ function publicRoom(room: Room) {
   return {
     code: room.code,
     players: [...room.players.values()].map(({ id, name, joinedAt }) => ({ id, name, joinedAt })),
+    game: {
+      phase: room.phase,
+      settings: room.settings,
+      currentRound: room.currentRound,
+      phaseStartedAt: room.phaseStartedAt,
+    },
   }
 }
 
@@ -56,9 +73,64 @@ export function createRoom(secretWord = '') {
     guesses: [],
     drawingActions: [],
     drawingPreview: null,
+    phase: 'waiting',
+    settings: { drawingTime: 60, rounds: 3 },
+    currentRound: 0,
+    phaseStartedAt: null,
   }
   rooms.set(code, room)
   return publicRoom(room)
+}
+
+export function setGameSettings(code: string, settings: Partial<GameSettings>) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase !== 'waiting') return { error: 'Game settings can only be changed while waiting.' as const }
+  const drawingTime = Number(settings.drawingTime)
+  const rounds = Number(settings.rounds)
+  if (!Number.isInteger(drawingTime) || drawingTime < 15 || drawingTime > 600) {
+    return { error: 'Drawing time must be between 15 and 600 seconds.' as const }
+  }
+  if (!Number.isInteger(rounds) || rounds < 1 || rounds > 20) {
+    return { error: 'Rounds must be between 1 and 20.' as const }
+  }
+  room.settings = { drawingTime, rounds }
+  return { room: publicRoom(room) }
+}
+
+export function startGame(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase !== 'waiting') return { error: 'The game has already started.' as const }
+  room.phase = 'drawing'
+  room.currentRound = 1
+  room.phaseStartedAt = Date.now()
+  room.guesses = []
+  room.drawingActions = []
+  room.drawingPreview = null
+  return { room: publicRoom(room) }
+}
+
+export function advanceGame(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase === 'drawing') {
+    if (room.currentRound >= room.settings.rounds) {
+      room.phase = 'finished'
+      room.phaseStartedAt = Date.now()
+    } else {
+      room.phase = 'round-break'
+      room.phaseStartedAt = Date.now()
+    }
+  } else if (room.phase === 'round-break') {
+    room.phase = 'drawing'
+    room.currentRound += 1
+    room.phaseStartedAt = Date.now()
+    room.guesses = []
+    room.drawingActions = []
+    room.drawingPreview = null
+  }
+  return { room: publicRoom(room) }
 }
 
 export function getDrawingState(code: string) {

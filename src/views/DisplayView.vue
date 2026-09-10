@@ -13,6 +13,9 @@ const qrCode = ref('')
 const errorMessage = ref('')
 const drawingActions = ref<DrawingAction[]>([])
 const drawingPreview = ref<DrawingAction | null>(null)
+const gamePhase = ref<'waiting' | 'drawing' | 'round-break' | 'finished'>('waiting')
+const currentRound = ref(0)
+const rounds = ref(3)
 let latestDrawingSequence = -1
 let drawingSocket: WebSocket | undefined
 let roomPoll: ReturnType<typeof setInterval> | undefined
@@ -24,8 +27,13 @@ async function refreshRoom() {
     errorMessage.value = 'That room is not available.'
     return
   }
-  const data = (await response.json()) as { room: { players: typeof players.value } }
+  const data = (await response.json()) as { room: { players: typeof players.value; game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number } } } }
   players.value = data.room.players
+  if (data.room.game) {
+    gamePhase.value = data.room.game.phase
+    currentRound.value = data.room.game.currentRound
+    rounds.value = data.room.game.settings.rounds
+  }
   const guessesResponse = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/guesses?role=display`)
   if (guessesResponse.ok) {
     const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
@@ -124,7 +132,7 @@ onBeforeUnmount(() => {
             </div>
           </aside>
           <section class="host-drawing display-drawing" aria-label="Audience drawing display">
-            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>Draw the clue</h2></div><span class="drawing-status"><i></i> Live</span></div>
+            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div>
             <DrawingCanvas :model-value="drawingActions" :preview="drawingPreview" readonly />
           </section>
         </div>

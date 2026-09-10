@@ -16,6 +16,9 @@ import {
   getDrawingState,
   setDrawingPreview,
   setDrawingState,
+  setGameSettings,
+  startGame,
+  advanceGame,
 } from './room-session'
 import type { DrawingAction, Point } from './src/types/drawing'
 
@@ -280,6 +283,40 @@ const server = Bun.serve<SocketData>({
       return room
         ? json({ room })
         : json({ error: 'That room does not exist.' }, { status: 404 })
+    }
+
+    const gameMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game$/i)
+    if (gameMatch && request.method === 'PUT') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      let body: { drawingTime?: unknown; rounds?: unknown } = {}
+      try { body = (await request.json()) as typeof body } catch {
+        return json({ error: 'Invalid request.' }, { status: 400 })
+      }
+      const result = setGameSettings(gameMatch[1], {
+        drawingTime: Number(body.drawingTime),
+        rounds: Number(body.rounds),
+      })
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+    }
+
+    const startGameMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/start$/i)
+    if (startGameMatch && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      const result = startGame(startGameMatch[1])
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+    }
+
+    const advanceGameMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/advance$/i)
+    if (advanceGameMatch && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      const result = advanceGame(advanceGameMatch[1])
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
     }
 
     const secretWordMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/secret-word$/i)

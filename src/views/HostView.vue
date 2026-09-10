@@ -21,6 +21,14 @@ const isEndingRoom = ref(false)
 const players = ref<Array<{ id: string; name: string }>>([])
 const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
+const isUpdatingGame = ref(false)
+const gamePhase = ref<'waiting' | 'drawing' | 'round-break' | 'finished'>('waiting')
+const drawingTime = ref(60)
+const rounds = ref(3)
+const currentRound = ref(0)
+const phaseStartedAt = ref<number | null>(null)
+const developerMode = ref(false)
+const secondsRemaining = ref(60)
 const drawingActions = ref<DrawingAction[]>([])
 let drawingSocket: WebSocket | undefined
 let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -28,6 +36,7 @@ let previewFrame = 0
 let pendingPreview: DrawingAction | null = null
 let drawingSequence = 0
 let playersPoll: ReturnType<typeof setInterval> | undefined
+let countdownPoll: ReturnType<typeof setInterval> | undefined
 
 const isLoopbackHost = computed(() =>
   ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname),
@@ -148,8 +157,15 @@ async function refreshPlayers() {
   if (!roomCode.value) return
   const response = await fetch(`/api/rooms/${roomCode.value}`)
   if (!response.ok) return
-  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }> } }
+  const data = (await response.json()) as { room: { players: Array<{ id: string; name: string }>; game?: { phase: typeof gamePhase.value; settings: { drawingTime: number; rounds: number }; currentRound: number; phaseStartedAt: number | null } } }
   players.value = data.room.players
+  if (data.room.game) {
+    gamePhase.value = data.room.game.phase
+    drawingTime.value = data.room.game.settings.drawingTime
+    rounds.value = data.room.game.settings.rounds
+    currentRound.value = data.room.game.currentRound
+    phaseStartedAt.value = data.room.game.phaseStartedAt
+  }
   const hostStateResponse = await fetch(`/api/rooms/${roomCode.value}/host-state`)
   if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'secret-word') {
     const hostState = (await hostStateResponse.json()) as { room: { secretWord: string } }
@@ -161,6 +177,66 @@ async function refreshPlayers() {
     const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
     guesses.value = guessesData.guesses
   }
+}
+
+async function saveGameSettings() {
+  if (!roomCode.value || isUpdatingGame.value || gamePhase.value !== 'waiting') return
+  isUpdatingGame.value = true
+  errorMessage.value = ''
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/game`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ drawingTime: drawingTime.value, rounds: rounds.value }),
+    })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not save game settings.')
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not save game settings.'
+  } finally {
+    isUpdatingGame.value = false
+  }
+}
+
+async function startGame() {
+  if (!roomCode.value || isUpdatingGame.value || gamePhase.value !== 'waiting') return
+  await saveGameSettings()
+  if (errorMessage.value) return
+  isUpdatingGame.value = true
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/game/start`, { method: 'POST' })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not start the game.')
+    await refreshPlayers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not start the game.'
+  } finally {
+    isUpdatingGame.value = false
+  }
+}
+
+async function advanceRound() {
+  if (!roomCode.value || isUpdatingGame.value || (gamePhase.value !== 'drawing' && gamePhase.value !== 'round-break')) return
+  isUpdatingGame.value = true
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/game/advance`, { method: 'POST' })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not advance the game.')
+    await refreshPlayers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not advance the game.'
+  } finally {
+    isUpdatingGame.value = false
+  }
+}
+
+function updateCountdown() {
+  if ((gamePhase.value !== 'drawing' && gamePhase.value !== 'round-break') || !phaseStartedAt.value) {
+    secondsRemaining.value = gamePhase.value === 'round-break' ? 5 : drawingTime.value
+    return
+  }
+  const phaseDuration = gamePhase.value === 'round-break' ? 5 : drawingTime.value
+  secondsRemaining.value = Math.max(0, phaseDuration - Math.floor((Date.now() - phaseStartedAt.value) / 1000))
+  if (secondsRemaining.value === 0 && !isUpdatingGame.value) advanceRound()
 }
 
 async function saveSecretWord() {
@@ -248,8 +324,10 @@ async function signIn() {
 }
 
 onMounted(checkAuthentication)
+onMounted(() => { countdownPoll = setInterval(updateCountdown, 1000) })
 onBeforeUnmount(() => {
   if (playersPoll) clearInterval(playersPoll)
+  if (countdownPoll) clearInterval(countdownPoll)
   if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
   drawingSocket?.close()
   if (previewFrame) cancelAnimationFrame(previewFrame)
@@ -346,7 +424,35 @@ onBeforeUnmount(() => {
             </header>
 
             <div class="host-body">
-              <aside class="host-panel guesses-panel" aria-label="Chat and player guesses">
+              <div class="host-sidebar">
+                <section class="host-panel game-settings-card" aria-label="Game settings">
+                  <div class="panel-heading">
+                    <div>
+                      <span class="panel-kicker">Game</span>
+                      <h2>{{ gamePhase === 'waiting' ? 'Waiting room' : gamePhase === 'drawing' ? `Round ${currentRound} of ${rounds}` : gamePhase === 'round-break' ? 'Next round' : 'Game complete' }}</h2>
+                    </div>
+                    <span class="game-time-badge">{{ gamePhase === 'drawing' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
+                  </div>
+                  <div class="game-settings">
+                    <label for="drawing-time">Drawing time</label>
+                    <select id="drawing-time" v-model.number="drawingTime" :disabled="gamePhase !== 'waiting'" @change="saveGameSettings">
+                      <option :value="30">30 sec</option><option :value="60">60 sec</option><option :value="90">90 sec</option><option :value="120">2 min</option>
+                    </select>
+                    <label for="round-count">Rounds</label>
+                    <select id="round-count" v-model.number="rounds" :disabled="gamePhase !== 'waiting'" @change="saveGameSettings">
+                      <option v-for="count in [1, 2, 3, 4, 5, 6]" :key="count" :value="count">{{ count }}</option>
+                    </select>
+                    <label class="developer-toggle"><input v-model="developerMode" type="checkbox" /> Dev mode</label>
+                  </div>
+                  <button v-if="gamePhase === 'waiting'" type="button" class="start-game-button" :disabled="isUpdatingGame" @click="startGame">
+                    {{ isUpdatingGame ? 'Starting…' : 'Start game' }}
+                  </button>
+                  <button v-else-if="developerMode && (gamePhase === 'drawing' || gamePhase === 'round-break')" type="button" class="skip-round-button" :disabled="isUpdatingGame" @click="advanceRound">
+                    {{ gamePhase === 'round-break' ? 'Start next round' : 'Skip round' }}
+                  </button>
+                </section>
+
+                <aside class="host-panel guesses-panel" aria-label="Chat and player guesses">
                 <div class="panel-heading">
                   <div>
                     <span class="panel-kicker">Live chat</span>
@@ -365,15 +471,16 @@ onBeforeUnmount(() => {
                   <span v-if="!players.length">Waiting for players…</span>
                   <span v-for="player in players" :key="player.id">{{ player.name }}</span>
                 </div>
-              </aside>
+                </aside>
+              </div>
 
               <section class="host-drawing" aria-label="Drawing area">
                 <div class="drawing-heading">
                   <div>
                     <p class="eyebrow">Canvas</p>
-                    <h2>Draw the clue</h2>
+                    <h2>{{ gamePhase === 'waiting' ? 'Waiting for players' : gamePhase === 'finished' ? 'All rounds complete' : gamePhase === 'round-break' ? 'Get ready' : 'Draw the clue' }}</h2>
                   </div>
-                  <span class="drawing-status"><i></i> Ready</span>
+                  <span class="drawing-status"><i></i> {{ gamePhase === 'waiting' ? 'Waiting' : gamePhase === 'finished' ? 'Finished' : gamePhase === 'round-break' ? 'Break' : `${secondsRemaining}s` }}</span>
                 </div>
                 <DrawingCanvas v-model="drawingActions" @change="drawingChanged" @preview="drawingPreviewChanged" />
               </section>
