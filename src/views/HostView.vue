@@ -22,13 +22,16 @@ const players = ref<Array<{ id: string; name: string }>>([])
 const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number }>>([])
 const isStartingRoom = ref(false)
 const isUpdatingGame = ref(false)
-const gamePhase = ref<'waiting' | 'drawing' | 'round-break' | 'finished'>('waiting')
+const gamePhase = ref<'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'>('waiting')
 const drawingTime = ref(60)
 const rounds = ref(3)
 const currentRound = ref(0)
 const phaseStartedAt = ref<number | null>(null)
 const developerMode = ref(false)
 const secondsRemaining = ref(60)
+const wordPool = ref<string[]>([])
+const poolWord = ref('')
+const wordOptions = ref<string[]>([])
 const drawingActions = ref<DrawingAction[]>([])
 let drawingSocket: WebSocket | undefined
 let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -167,10 +170,12 @@ async function refreshPlayers() {
     phaseStartedAt.value = data.room.game.phaseStartedAt
   }
   const hostStateResponse = await fetch(`/api/rooms/${roomCode.value}/host-state`)
-  if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'secret-word') {
-    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string } }
+  if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'round-word') {
+    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string; wordPool?: string[]; wordOptions?: string[] } }
     secretWord.value = hostState.room.secretWord
     savedSecretWord.value = hostState.room.secretWord
+    wordPool.value = hostState.room.wordPool ?? []
+    wordOptions.value = hostState.room.wordOptions ?? []
   }
   const guessesResponse = await fetch(`/api/rooms/${roomCode.value}/guesses?role=host`)
   if (guessesResponse.ok) {
@@ -227,6 +232,45 @@ async function advanceRound() {
   } finally {
     isUpdatingGame.value = false
   }
+}
+
+async function chooseWord(word: string) {
+  if (!roomCode.value || isUpdatingGame.value || gamePhase.value !== 'word-pick') return
+  isUpdatingGame.value = true
+  errorMessage.value = ''
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/game/choose-word`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ word }),
+    })
+    const data = (await response.json()) as { error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not start the round.')
+    await refreshPlayers()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not start the round.'
+  } finally {
+    isUpdatingGame.value = false
+  }
+}
+
+async function updateWordPool() {
+  const word = poolWord.value.trim()
+  if (!roomCode.value || !word || gamePhase.value !== 'waiting') return
+  const nextPool = [...wordPool.value, word]
+  const response = await fetch(`/api/rooms/${roomCode.value}/game/pool`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: nextPool }),
+  })
+  const data = (await response.json()) as { error?: string; room?: { wordPool?: string[] } }
+  if (!response.ok) { errorMessage.value = data.error ?? 'Could not update the word pool.'; return }
+  wordPool.value = data.room?.wordPool ?? nextPool
+  poolWord.value = ''
+}
+
+async function removePoolWord(word: string) {
+  if (!roomCode.value || gamePhase.value !== 'waiting') return
+  const response = await fetch(`/api/rooms/${roomCode.value}/game/pool`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ words: wordPool.value.filter((item) => item !== word) }),
+  })
+  if (response.ok) wordPool.value = wordPool.value.filter((item) => item !== word)
 }
 
 function updateCountdown() {
@@ -397,16 +441,6 @@ onBeforeUnmount(() => {
                 <strong>{{ roomCode }}</strong>
               </div>
               <div class="round-setup-header">
-                <form class="secret-word-form" @submit.prevent="saveSecretWord">
-                  <label for="secret-word">Word to draw</label>
-                  <div class="header-word-entry">
-                    <input id="secret-word" v-model="secretWord" maxlength="80" placeholder="Enter a word" required />
-                    <button type="submit" :disabled="isSavingSecretWord">
-                      {{ isSavingSecretWord ? 'Saving…' : 'Save word' }}
-                    </button>
-                  </div>
-                  <p v-if="savedSecretWord" class="saved-word">Private word: {{ savedSecretWord }}</p>
-                </form>
                 <div class="header-session-actions">
                   <a class="display-link" :href="`/display/${roomCode}`" target="_blank" rel="noopener">Projector view ↗</a>
                   <button type="button" class="end-session-button" :disabled="isEndingRoom" @click="endSession">
@@ -429,9 +463,26 @@ onBeforeUnmount(() => {
                   <div class="panel-heading">
                     <div>
                       <span class="panel-kicker">Game</span>
-                      <h2>{{ gamePhase === 'waiting' ? 'Waiting room' : gamePhase === 'drawing' ? `Round ${currentRound} of ${rounds}` : gamePhase === 'round-break' ? 'Next round' : 'Game complete' }}</h2>
+                      <h2>{{ gamePhase === 'waiting' ? 'Waiting room' : gamePhase === 'word-pick' ? 'Pick a word' : gamePhase === 'drawing' ? `Round ${currentRound} of ${rounds}` : gamePhase === 'round-break' ? 'Next round' : 'Game complete' }}</h2>
                     </div>
                     <span class="game-time-badge">{{ gamePhase === 'drawing' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
+                  </div>
+                  <div v-if="gamePhase === 'waiting'" class="word-pick-form">
+                    <label for="pool-word">Word pool</label>
+                    <div class="pool-word-entry">
+                      <input id="pool-word" v-model="poolWord" maxlength="80" placeholder="Add a word" @keyup.enter="updateWordPool" />
+                      <button type="button" @click="updateWordPool">Add</button>
+                    </div>
+                    <div v-if="wordPool.length" class="word-pool-list">
+                      <span v-for="word in wordPool" :key="word" class="word-pool-chip">{{ word }} <button type="button" :aria-label="`Remove ${word}`" @click="removePoolWord(word)">×</button></span>
+                    </div>
+                    <p class="settings-help">Add at least 3 words before starting.</p>
+                  </div>
+                  <div v-else-if="gamePhase === 'word-pick'" class="word-pick-form">
+                    <label>Choose one word for this round</label>
+                    <div class="word-choice-list">
+                      <button v-for="word in wordOptions" :key="word" type="button" class="word-choice-button" :disabled="isUpdatingGame" @click="chooseWord(word)">{{ word }}</button>
+                    </div>
                   </div>
                   <div class="game-settings">
                     <label for="drawing-time">Drawing time</label>
@@ -478,11 +529,16 @@ onBeforeUnmount(() => {
                 <div class="drawing-heading">
                   <div>
                     <p class="eyebrow">Canvas</p>
-                    <h2>{{ gamePhase === 'waiting' ? 'Waiting for players' : gamePhase === 'finished' ? 'All rounds complete' : gamePhase === 'round-break' ? 'Get ready' : 'Draw the clue' }}</h2>
+                      <h2>{{ gamePhase === 'waiting' ? 'Waiting for players' : gamePhase === 'word-pick' ? 'Choose a word to begin' : gamePhase === 'finished' ? 'All rounds complete' : gamePhase === 'round-break' ? 'Get ready' : 'Draw the clue' }}</h2>
                   </div>
                   <span class="drawing-status"><i></i> {{ gamePhase === 'waiting' ? 'Waiting' : gamePhase === 'finished' ? 'Finished' : gamePhase === 'round-break' ? 'Break' : `${secondsRemaining}s` }}</span>
                 </div>
-                <DrawingCanvas v-model="drawingActions" @change="drawingChanged" @preview="drawingPreviewChanged" />
+                <div v-if="gamePhase === 'word-pick'" class="word-pick-stage">
+                  <span class="word-pick-stage-icon">✦</span>
+                  <strong>Pick one word for the players to guess</strong>
+                  <span>Enter the round word in the Game settings card.</span>
+                </div>
+                <DrawingCanvas v-else v-model="drawingActions" @change="drawingChanged" @preview="drawingPreviewChanged" />
               </section>
 
             </div>

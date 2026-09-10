@@ -915,6 +915,71 @@ button:disabled {
   margin-top: 16px;
 }
 
+.word-pick-form {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e4e0d7;
+}
+
+.word-pick-form label {
+  margin: 0;
+  color: #65676b;
+  font-size: 0.72rem;
+}
+
+.word-pick-form input {
+  padding: 10px 11px;
+  font-size: 0.8rem;
+}
+
+.pool-word-entry { display: flex; gap: 6px; }
+.pool-word-entry input { min-width: 0; }
+.pool-word-entry button { margin: 0; padding: 9px 10px; border-radius: 8px; font-size: 0.72rem; }
+
+.word-pool-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.word-pool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 8px;
+  border-radius: 7px;
+  color: #34363a;
+  background: #f4f1ea;
+  font-size: 0.7rem;
+}
+.word-pool-chip button { margin: 0; padding: 0 2px; color: #85878b; background: transparent; font-size: 0.9rem; line-height: 1; }
+.word-pool-chip button:hover { color: #a23b2a; background: transparent; transform: none; }
+
+.word-choice-list { display: grid; gap: 7px; }
+.word-choice-button { margin: 0; padding: 10px; border: 1px solid #d8d4cb; color: #202124; background: white; text-align: left; }
+.word-choice-button:hover { color: white; background: #202124; }
+
+.settings-help {
+  margin: 0;
+  color: #85878b;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.word-pick-stage {
+  display: grid;
+  min-height: 340px;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  padding: 40px;
+  border: 1px dashed #bbb5aa;
+  border-radius: 14px;
+  color: #65676b;
+  background: rgb(255 255 255 / 58%);
+  text-align: center;
+}
+
+.word-pick-stage strong { color: #202124; font-size: 1.1rem; }
+.word-pick-stage-icon { color: #d65a31; font-size: 2rem; }
+
 .host-panel {
   position: sticky;
   top: 24px;

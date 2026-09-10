@@ -18,7 +18,10 @@ import {
   setDrawingState,
   setGameSettings,
   startGame,
+  beginRound,
+  chooseWord,
   advanceGame,
+  setWordPool,
 } from './room-session'
 import type { DrawingAction, Point } from './src/types/drawing'
 
@@ -307,6 +310,37 @@ const server = Bun.serve<SocketData>({
         return json({ error: 'Host authentication required.' }, { status: 401 })
       }
       const result = startGame(startGameMatch[1])
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+    }
+
+    const beginRoundMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/begin-round$/i)
+    if (beginRoundMatch && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) {
+        return json({ error: 'Host authentication required.' }, { status: 401 })
+      }
+      const result = beginRound(beginRoundMatch[1])
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+    }
+
+    const chooseWordMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/choose-word$/i)
+    if (chooseWordMatch && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      let word = ''
+      try { const body = (await request.json()) as { word?: unknown }; if (typeof body.word === 'string') word = body.word } catch {
+        return json({ error: 'Invalid request.' }, { status: 400 })
+      }
+      const result = chooseWord(chooseWordMatch[1], word)
+      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+    }
+
+    const wordPoolMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/pool$/i)
+    if (wordPoolMatch && request.method === 'PUT') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      let words: unknown = []
+      try { const body = (await request.json()) as { words?: unknown }; words = body.words } catch {
+        return json({ error: 'Invalid request.' }, { status: 400 })
+      }
+      const result = setWordPool(wordPoolMatch[1], Array.isArray(words) ? words.filter((word): word is string => typeof word === 'string') : [])
       return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
     }
 

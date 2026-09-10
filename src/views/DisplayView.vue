@@ -13,7 +13,7 @@ const qrCode = ref('')
 const errorMessage = ref('')
 const drawingActions = ref<DrawingAction[]>([])
 const drawingPreview = ref<DrawingAction | null>(null)
-const gamePhase = ref<'waiting' | 'drawing' | 'round-break' | 'finished'>('waiting')
+const gamePhase = ref<'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'>('waiting')
 const currentRound = ref(0)
 const rounds = ref(3)
 let latestDrawingSequence = -1
@@ -132,7 +132,7 @@ onBeforeUnmount(() => {
             </div>
           </aside>
           <section class="host-drawing display-drawing" aria-label="Audience drawing display">
-            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div>
+            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'word-pick' ? 'Host is picking a word' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div>
             <DrawingCanvas :model-value="drawingActions" :preview="drawingPreview" readonly />
           </section>
         </div>

@@ -16,7 +16,7 @@ export type Guess = {
   createdAt: number
 }
 
-export type GamePhase = 'waiting' | 'drawing' | 'round-break' | 'finished'
+export type GamePhase = 'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'
 
 export type GameSettings = {
   drawingTime: number
@@ -35,6 +35,8 @@ export type Room = {
   settings: GameSettings
   currentRound: number
   phaseStartedAt: number | null
+  wordPool: string[]
+  wordOptions: string[]
 }
 
 const rooms = new Map<string, Room>()
@@ -77,9 +79,22 @@ export function createRoom(secretWord = '') {
     settings: { drawingTime: 60, rounds: 3 },
     currentRound: 0,
     phaseStartedAt: null,
+    wordPool: [],
+    wordOptions: [],
   }
   rooms.set(code, room)
   return publicRoom(room)
+}
+
+export function setWordPool(code: string, words: string[]) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase !== 'waiting') return { error: 'The word pool can only be changed while waiting.' as const }
+  const cleaned = [...new Set(words.map((word) => word.trim()).filter(Boolean))]
+  if (cleaned.some((word) => word.length > 80)) return { error: 'Words must be 80 characters or fewer.' as const }
+  if (cleaned.length > 100) return { error: 'The word pool can contain up to 100 words.' as const }
+  room.wordPool = cleaned
+  return { room: publicRoom(room) }
 }
 
 export function setGameSettings(code: string, settings: Partial<GameSettings>) {
@@ -102,12 +117,34 @@ export function startGame(code: string) {
   const room = rooms.get(normalizeRoomCode(code))
   if (!room) return { error: 'That room does not exist.' as const }
   if (room.phase !== 'waiting') return { error: 'The game has already started.' as const }
-  room.phase = 'drawing'
+  if (room.wordPool.length < 3) return { error: 'Add at least 3 words to the word pool first.' as const }
+  room.phase = 'word-pick'
   room.currentRound = 1
   room.phaseStartedAt = Date.now()
   room.guesses = []
   room.drawingActions = []
   room.drawingPreview = null
+  room.wordOptions = room.wordPool.slice().sort(() => Math.random() - 0.5).slice(0, 3)
+  return { room: publicRoom(room) }
+}
+
+export function beginRound(code: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase !== 'word-pick') return { error: 'The game is not waiting for a word.' as const }
+  if (!room.secretWord.trim()) return { error: 'Choose a word before starting the round.' as const }
+  room.phase = 'drawing'
+  room.phaseStartedAt = Date.now()
+  return { room: publicRoom(room) }
+}
+
+export function chooseWord(code: string, word: string) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase !== 'word-pick' || !room.wordOptions.includes(word)) return { error: 'Choose one of the available words.' as const }
+  room.secretWord = word
+  room.phase = 'drawing'
+  room.phaseStartedAt = Date.now()
   return { room: publicRoom(room) }
 }
 
@@ -123,9 +160,10 @@ export function advanceGame(code: string) {
       room.phaseStartedAt = Date.now()
     }
   } else if (room.phase === 'round-break') {
-    room.phase = 'drawing'
+    room.phase = 'word-pick'
     room.currentRound += 1
     room.phaseStartedAt = Date.now()
+    room.wordOptions = room.wordPool.slice().sort(() => Math.random() - 0.5).slice(0, 3)
     room.guesses = []
     room.drawingActions = []
     room.drawingPreview = null
@@ -167,7 +205,7 @@ export function setSecretWord(code: string, secretWord: string) {
 
 export function getHostRoom(code: string) {
   const room = rooms.get(normalizeRoomCode(code))
-  return room ? { ...publicRoom(room), secretWord: room.secretWord } : null
+  return room ? { ...publicRoom(room), secretWord: room.secretWord, wordPool: room.wordPool, wordOptions: room.wordOptions } : null
 }
 
 export function getRoom(code: string) {

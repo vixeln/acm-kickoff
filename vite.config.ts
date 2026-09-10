@@ -16,12 +16,17 @@ import {
   getDrawingState,
   getPlayerGuesses,
   getRoom,
+  getHostRoom,
   joinRoom,
   setDrawingPreview,
   setDrawingState,
   setGameSettings,
   startGame,
+  beginRound,
+  chooseWord,
   advanceGame,
+  setWordPool,
+  setSecretWord,
 } from './room-session.ts'
 import type { DrawingAction } from './src/types/drawing'
 
@@ -148,6 +153,11 @@ function installNetworkInfoMiddleware(
     const guessesMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/guesses$/i)
     const gameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game$/i)
     const startGameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/start$/i)
+    const beginRoundMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/begin-round$/i)
+    const chooseWordMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/choose-word$/i)
+    const wordPoolMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/pool$/i)
+    const hostStateMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/host-state$/i)
+    const secretWordMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/secret-word$/i)
     const advanceGameMatch = path.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/advance$/i)
     const send = (status: number, data: unknown) => {
       response.statusCode = status
@@ -158,6 +168,23 @@ function installNetworkInfoMiddleware(
 
     if (request.method === 'POST' && path === '/api/rooms') {
       send(201, { room: createRoom() })
+      return
+    }
+    if (request.method === 'GET' && hostStateMatch) {
+      const room = getHostRoom(hostStateMatch[1])
+      send(room ? 200 : 404, room ? { room } : { error: 'That room does not exist.' })
+      return
+    }
+    if (request.method === 'PUT' && secretWordMatch) {
+      let body = ''
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()))
+      request.on('end', () => {
+        try {
+          const parsed = JSON.parse(body) as { secretWord?: unknown }
+          const result = setSecretWord(secretWordMatch[1], typeof parsed.secretWord === 'string' ? parsed.secretWord : '')
+          send('error' in result ? 400 : 200, result)
+        } catch { send(400, { error: 'Invalid request.' }) }
+      })
       return
     }
     if (request.method === 'PUT' && gameMatch) {
@@ -180,6 +207,36 @@ function installNetworkInfoMiddleware(
     if (request.method === 'POST' && startGameMatch) {
       const result = startGame(startGameMatch[1])
       send('error' in result ? 400 : 200, result)
+      return
+    }
+    if (request.method === 'POST' && beginRoundMatch) {
+      const result = beginRound(beginRoundMatch[1])
+      send('error' in result ? 400 : 200, result)
+      return
+    }
+    if (request.method === 'POST' && chooseWordMatch) {
+      let body = ''
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()))
+      request.on('end', () => {
+        try {
+          const parsed = JSON.parse(body) as { word?: unknown }
+          const result = chooseWord(chooseWordMatch[1], typeof parsed.word === 'string' ? parsed.word : '')
+          send('error' in result ? 400 : 200, result)
+        } catch { send(400, { error: 'Invalid request.' }) }
+      })
+      return
+    }
+    if (request.method === 'PUT' && wordPoolMatch) {
+      let body = ''
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()))
+      request.on('end', () => {
+        try {
+          const parsed = JSON.parse(body) as { words?: unknown }
+          const words = Array.isArray(parsed.words) ? parsed.words.filter((word): word is string => typeof word === 'string') : []
+          const result = setWordPool(wordPoolMatch[1], words)
+          send('error' in result ? 400 : 200, result)
+        } catch { send(400, { error: 'Invalid request.' }) }
+      })
       return
     }
     if (request.method === 'POST' && advanceGameMatch) {
