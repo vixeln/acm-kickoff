@@ -515,7 +515,15 @@ const server = Bun.serve<SocketData>({
         return json({ error: 'Invalid request.' }, { status: 400 })
       }
       const result = addGuess(guessesMatch[1], playerId, token, text)
-      return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result, { status: 201 })
+      if ('error' in result) return json({ error: result.error }, { status: 400 })
+      const guess = getAllGuesses(guessesMatch[1])?.at(-1)
+      if (guess) {
+        const outgoing = JSON.stringify({ type: 'guess', guess })
+        drawingSockets.get(guessesMatch[1].trim().toUpperCase())?.forEach((peer) => {
+          if (peer.data.role === 'display') peer.send(outgoing)
+        })
+      }
+      return json(result, { status: 201 })
     }
 
     if (url.pathname === '/ws') {

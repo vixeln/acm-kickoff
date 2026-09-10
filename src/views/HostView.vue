@@ -19,7 +19,7 @@ const savedSecretWord = ref('')
 const isSavingSecretWord = ref(false)
 const isEndingRoom = ref(false)
 const players = ref<Array<{ id: string; name: string }>>([])
-const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number; isCorrect?: boolean; scoreAwarded?: number }>>([])
+const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number; isCorrect?: boolean; scoreAwarded?: number; playerHasSolved?: boolean }>>([])
 const isStartingRoom = ref(false)
 const isUpdatingGame = ref(false)
 const gamePhase = ref<'waiting' | 'word-pick' | 'drawing' | 'round-break' | 'finished'>('waiting')
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="guess-list host-guesses" aria-live="polite">
                   <span v-if="!guesses.length" class="empty-state">Guesses will appear here.</span>
-                  <span v-for="item in guesses" :key="item.id" class="guess-item" :class="{ 'correct-guess': item.isCorrect }">
+                  <span v-for="item in guesses" :key="item.id" class="guess-item" :class="{ 'correct-guess': item.playerHasSolved }">
                     <b>{{ item.playerName }}</b><br />{{ item.isCorrect ? `guessed it! +${item.scoreAwarded ?? 0} points` : item.text }}
                   </span>
                 </div>

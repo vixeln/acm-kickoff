@@ -8,7 +8,7 @@ const roomCode = computed(() => String(route.query.room ?? ''))
 const playerId = computed(() => String(route.query.player ?? ''))
 const sessionToken = computed(() => String(route.query.token ?? ''))
 const guess = ref('')
-const guesses = ref<Array<{ id: string; text: string; createdAt: number; isCorrect?: boolean; scoreAwarded?: number }>>([])
+const guesses = ref<Array<{ id: string; playerName: string; text: string; createdAt: number; isCorrect?: boolean; scoreAwarded?: number; playerHasSolved?: boolean }>>([])
 const errorMessage = ref('')
 const sessionEnded = ref(false)
 const isSending = ref(false)
@@ -114,9 +114,9 @@ onBeforeUnmount(() => {
         </form>
         <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
         <div class="guess-list" aria-live="polite">
-          <strong>Your guesses</strong>
-          <span v-if="!guesses.length" class="empty-state">No guesses yet.</span>
-          <span v-for="item in guesses" :key="item.id" class="guess-item" :class="{ 'correct-guess': item.isCorrect }">{{ item.isCorrect ? `Correct! +${item.scoreAwarded ?? 0} points` : item.text }}</span>
+          <strong>Game chat</strong>
+          <span v-if="!guesses.length" class="empty-state">Guesses will appear here.</span>
+          <span v-for="item in guesses" :key="item.id" class="guess-item" :class="{ 'correct-guess': item.playerHasSolved }"><b>{{ item.playerName }}</b><br />{{ item.isCorrect ? `guessed it! +${item.scoreAwarded ?? 0} points` : item.text }}</span>
         </div>
       </template>
       <RouterLink class="text-link" to="/login">Join a different room</RouterLink>
