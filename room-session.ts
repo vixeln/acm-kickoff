@@ -37,6 +37,7 @@ export type Room = {
   currentRound: number
   phaseStartedAt: number | null
   wordPool: string[]
+  wordPoolId: number | null
   wordOptions: string[]
 }
 
@@ -60,7 +61,7 @@ function publicRoom(room: Room) {
   }
 }
 
-export function createRoom(secretWord = '', wordPool: string[] = []) {
+export function createRoom(secretWord = '', wordPool: string[] = [], wordPoolId: number | null = null) {
   let code = ''
   do {
     code = Array.from({ length: 4 }, () =>
@@ -81,6 +82,7 @@ export function createRoom(secretWord = '', wordPool: string[] = []) {
     currentRound: 0,
     phaseStartedAt: null,
     wordPool: [...wordPool],
+    wordPoolId,
     wordOptions: [],
   }
   rooms.set(code, room)
@@ -96,6 +98,15 @@ export function setWordPool(code: string, words: string[]) {
   if (cleaned.length > 100) return { error: 'The word pool can contain up to 100 words.' as const }
   room.wordPool = cleaned
   return { room: { ...publicRoom(room), wordPool: [...room.wordPool] } }
+}
+
+export function setRoomWordPool(code: string, words: string[], poolId: number | null) {
+  const room = rooms.get(normalizeRoomCode(code))
+  if (!room) return { error: 'That room does not exist.' as const }
+  if (room.phase !== 'waiting') return { error: 'The word pool can only be changed while waiting.' as const }
+  room.wordPool = [...new Set(words.map((word) => word.trim()).filter(Boolean))]
+  room.wordPoolId = poolId
+  return { room: { ...publicRoom(room), wordPool: [...room.wordPool], wordPoolId: room.wordPoolId } }
 }
 
 export function setGameSettings(code: string, settings: Partial<GameSettings>) {
@@ -230,7 +241,7 @@ export function setSecretWord(code: string, secretWord: string) {
 
 export function getHostRoom(code: string) {
   const room = rooms.get(normalizeRoomCode(code))
-  return room ? { ...publicRoom(room), secretWord: room.secretWord, wordPool: room.wordPool, wordOptions: room.wordOptions } : null
+  return room ? { ...publicRoom(room), secretWord: room.secretWord, wordPool: room.wordPool, wordPoolId: room.wordPoolId, wordOptions: room.wordOptions } : null
 }
 
 export function getRoom(code: string) {

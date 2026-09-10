@@ -43,6 +43,34 @@ input {
   backdrop-filter: blur(12px);
 }
 
+.editor-shell { align-items: start; padding-top: 6vh; }
+.editor-card { width: min(100%, 980px); }
+.editor-topline, .pool-editor-heading, .csv-tools { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.editor-topline { margin-bottom: 8px; }
+.pool-editor-layout { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
+.pool-category-panel, .pool-words-panel, .csv-tools { padding: 18px; border: 1px solid rgb(32 33 36 / 10%); border-radius: 16px; background: rgb(255 255 255 / 72%); }
+.pool-category-panel { display: grid; align-content: start; gap: 8px; }
+.pool-category-button { display: grid; gap: 3px; margin: 0; padding: 11px 12px; color: #202124; background: transparent; text-align: left; }
+.pool-category-button small { color: #85878b; font-size: .72rem; }
+.pool-category-button.active { color: white; background: #202124; }
+.pool-category-button.active small { color: #d8d4cb; }
+.pool-add-form, .csv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pool-add-form { margin-top: 8px; }
+.pool-add-form input { min-width: 0; padding: 10px; }
+.pool-add-form button, .small-button { margin: 0; padding: 9px 12px; font-size: .78rem; }
+.pool-words-panel { min-height: 300px; }
+.pool-editor-heading h2, .csv-tools h2 { margin: 4px 0 0; font-size: 1.2rem; }
+.pool-editor-heading > div:last-child { display: flex; gap: 7px; }
+.editor-word-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.editor-word-list .empty-state { width: 100%; }
+.danger-button { color: #a23b2a; background: #fff5f2; border: 1px solid #e8b8ac; }
+.csv-tools { margin-top: 18px; }
+.csv-tools p { margin: 6px 0 0; }
+.csv-actions { align-items: center; justify-content: end; }
+.csv-actions select { padding: 9px; border: 1px solid #d8d4cb; border-radius: 9px; background: white; }
+.success-message { color: #176b39; font-weight: 700; }
+.host-pool-select { width: 100%; margin: 8px 0 12px; padding: 12px; border: 1px solid #d8d4cb; border-radius: 12px; background: white; }
+
 .mark {
   display: grid;
   width: 48px;
@@ -579,6 +607,8 @@ button:disabled {
 }
 
 @media (max-width: 520px) {
+  .pool-editor-layout { grid-template-columns: 1fr; }
+  .csv-tools { align-items: start; flex-direction: column; }
   .page-shell {
     padding: 14px;
   }

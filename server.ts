@@ -23,9 +23,20 @@ import {
   advanceGame,
   resetGame,
   setWordPool,
+  setRoomWordPool,
 } from './room-session'
 import type { DrawingAction, Point } from './src/types/drawing'
-import { initializeWordPoolStore, loadWordPool, saveWordPool } from './word-pool-store'
+import {
+  createWordPool,
+  deleteWordPool,
+  initializeWordPoolStore,
+  listWordPools,
+  loadWordPool,
+  mergeWordPools,
+  renameWordPool,
+  replaceWordPoolWords,
+  saveWordPool,
+} from './word-pool-store'
 
 type SocketData = {
   playerId?: string
@@ -256,12 +267,71 @@ const server = Bun.serve<SocketData>({
       )
     }
 
+    if (url.pathname === '/api/word-pools' && request.method === 'GET') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      return json({ pools: await listWordPools() })
+    }
+
+    if (url.pathname === '/api/word-pools' && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      let name = ''
+      try { const body = (await request.json()) as { name?: unknown }; if (typeof body.name === 'string') name = body.name } catch { return json({ error: 'Invalid request.' }, { status: 400 }) }
+      if (!name.trim() || name.trim().length > 80) return json({ error: 'Pool names must be between 1 and 80 characters.' }, { status: 400 })
+      try { return json({ pool: await createWordPool(name) }, { status: 201 }) } catch { return json({ error: 'A pool with that name already exists.' }, { status: 409 }) }
+    }
+
+    const wordPoolResourceMatch = url.pathname.match(/^\/api\/word-pools\/(\d+)(?:\/(words))?$/)
+    if (wordPoolResourceMatch && (request.method === 'PUT' || request.method === 'DELETE')) {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      const id = Number(wordPoolResourceMatch[1])
+      if (request.method === 'DELETE') return json(await deleteWordPool(id))
+      let body: { name?: unknown; words?: unknown } = {}
+      try { body = (await request.json()) as typeof body } catch { return json({ error: 'Invalid request.' }, { status: 400 }) }
+      if (wordPoolResourceMatch[2] === 'words') {
+        const words = Array.isArray(body.words) ? body.words.filter((word): word is string => typeof word === 'string') : []
+        if (words.some((word) => word.trim().length > 80) || words.length > 1000) return json({ error: 'Words must be 80 characters or fewer, with up to 1,000 words per pool.' }, { status: 400 })
+        const pool = await replaceWordPoolWords(id, words)
+        return pool ? json({ pool }) : json({ error: 'That pool does not exist.' }, { status: 404 })
+      }
+      if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 80) return json({ error: 'Pool names must be between 1 and 80 characters.' }, { status: 400 })
+      try { const pool = await renameWordPool(id, body.name); return pool ? json({ pool }) : json({ error: 'That pool does not exist.' }, { status: 404 }) } catch { return json({ error: 'A pool with that name already exists.' }, { status: 409 }) }
+    }
+
+    const roomPoolSourceMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)\/game\/pool-source$/i)
+    if (roomPoolSourceMatch && request.method === 'PUT') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      try {
+        const body = (await request.json()) as { poolId?: unknown }
+        const poolId = Number(body.poolId)
+        if (!Number.isInteger(poolId)) return json({ error: 'Choose a valid word pool.' }, { status: 400 })
+        const words = await loadWordPool(poolId)
+        const result = setRoomWordPool(roomPoolSourceMatch[1], words, poolId)
+        return 'error' in result ? json({ error: result.error }, { status: 400 }) : json(result)
+      } catch { return json({ error: 'Could not select that word pool.' }, { status: 400 }) }
+    }
+
+    if (url.pathname === '/api/word-pools/import' && request.method === 'POST') {
+      if (!isHostAuthorized(request, bunServer)) return json({ error: 'Host authentication required.' }, { status: 401 })
+      try {
+        const body = (await request.json()) as { pools?: unknown; mode?: unknown }
+        const pools = Array.isArray(body.pools) ? body.pools.filter((pool): pool is { name: string; words: string[] } => Boolean(pool && typeof pool === 'object' && typeof (pool as { name?: unknown }).name === 'string' && Array.isArray((pool as { words?: unknown }).words))) : []
+        const normalized = pools.map((pool) => ({ name: pool.name, words: pool.words.filter((word): word is string => typeof word === 'string') }))
+        if (!normalized.length) return json({ error: 'The import did not contain any categories.' }, { status: 400 })
+        await mergeWordPools(normalized, body.mode === 'replace-all')
+        return json({ pools: await listWordPools() })
+      } catch { return json({ error: 'Could not import the word pools.' }, { status: 400 }) }
+    }
+
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
       if (!isHostAuthorized(request, bunServer)) {
         return json({ error: 'Host authentication required.' }, { status: 401 })
       }
-      const wordPool = await loadWordPool()
-      return json({ room: createRoom('', wordPool) }, { status: 201 })
+      let poolId: number | undefined
+      try { const body = (await request.json()) as { poolId?: unknown }; if (Number.isInteger(body.poolId)) poolId = body.poolId } catch { /* Optional request body. */ }
+      const pools = await listWordPools()
+      const chosenPoolId = poolId ?? pools.find((pool) => pool.name === 'General')?.id ?? pools[0]?.id
+      const wordPool = await loadWordPool(chosenPoolId)
+      return json({ room: createRoom('', wordPool, chosenPoolId ?? null) }, { status: 201 })
     }
 
     const endRoomMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)

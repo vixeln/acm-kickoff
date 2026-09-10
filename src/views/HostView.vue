@@ -33,6 +33,8 @@ const secondsRemaining = ref(60)
 const wordPool = ref<string[]>([])
 const poolWord = ref('')
 const wordOptions = ref<string[]>([])
+const savedPools = ref<Array<{ id: number; name: string; words: string[] }>>([])
+const selectedPoolId = ref<number | null>(null)
 const drawingActions = ref<DrawingAction[]>([])
 let drawingSocket: WebSocket | undefined
 let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -89,12 +91,23 @@ async function checkAuthentication() {
     const data = (await response.json()) as { authenticated: boolean; configured: boolean }
     isAuthenticated.value = data.authenticated
     hostAccessConfigured.value = data.configured
+    if (data.authenticated) await loadSavedPools()
   } catch (error) {
     console.error(error)
     authenticationError.value = 'Could not check host access. Try refreshing the page.'
   } finally {
     isCheckingAuthentication.value = false
   }
+}
+
+async function loadSavedPools() {
+  try {
+    const response = await fetch('/api/word-pools')
+    if (!response.ok) return
+    const data = (await response.json()) as { pools?: typeof savedPools.value }
+    savedPools.value = data.pools ?? []
+    selectedPoolId.value = selectedPoolId.value ?? savedPools.value[0]?.id ?? null
+  } catch (error) { console.error(error) }
 }
 
 async function startRoom() {
@@ -173,10 +186,11 @@ async function refreshPlayers() {
   }
   const hostStateResponse = await fetch(`/api/rooms/${roomCode.value}/host-state`)
   if (hostStateResponse.ok && !isSavingSecretWord.value && document.activeElement?.id !== 'round-word') {
-    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string; wordPool?: string[]; wordOptions?: string[]; game?: { settings: { wordPickTime: number } } } }
+    const hostState = (await hostStateResponse.json()) as { room: { secretWord: string; wordPool?: string[]; wordPoolId?: number | null; wordOptions?: string[]; game?: { settings: { wordPickTime: number } } } }
     secretWord.value = hostState.room.secretWord
     savedSecretWord.value = hostState.room.secretWord
     wordPool.value = hostState.room.wordPool ?? []
+    selectedPoolId.value = hostState.room.wordPoolId ?? selectedPoolId.value
     wordOptions.value = hostState.room.wordOptions ?? []
     if (hostState.room.game) wordPickTime.value = hostState.room.game.settings.wordPickTime
   }
@@ -185,6 +199,18 @@ async function refreshPlayers() {
     const guessesData = (await guessesResponse.json()) as { guesses: typeof guesses.value }
     guesses.value = guessesData.guesses
   }
+}
+
+async function selectPool() {
+  if (!roomCode.value || selectedPoolId.value === null || gamePhase.value !== 'waiting') return
+  isUpdatingGame.value = true
+  try {
+    const response = await fetch(`/api/rooms/${roomCode.value}/game/pool-source`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ poolId: selectedPoolId.value }) })
+    const data = (await response.json()) as { room?: { wordPool?: string[] }; error?: string }
+    if (!response.ok) throw new Error(data.error ?? 'Could not select the word pool.')
+    wordPool.value = data.room?.wordPool ?? []
+  } catch (error) { errorMessage.value = error instanceof Error ? error.message : 'Could not select the word pool.' }
+  finally { isUpdatingGame.value = false }
 }
 
 async function saveGameSettings() {
@@ -385,6 +411,7 @@ async function signIn() {
 
     password.value = ''
     isAuthenticated.value = true
+    await loadSavedPools()
   } catch (error) {
     console.error(error)
     authenticationError.value = 'Could not reach the server. Try again.'
@@ -445,6 +472,7 @@ onBeforeUnmount(() => {
       <template v-else-if="!roomCode">
         <h1 id="host-title">Ready to host</h1>
         <p class="subtitle">Start a new session when you’re ready for players to join.</p>
+        <RouterLink class="text-link" to="/word-pools">Open word pool editor</RouterLink>
         <button type="button" :disabled="isStartingRoom" @click="startRoom">
           {{ isStartingRoom ? 'Starting session…' : 'Start new session' }}
         </button>
@@ -494,15 +522,8 @@ onBeforeUnmount(() => {
                     <span class="game-time-badge">{{ gamePhase === 'drawing' || gamePhase === 'word-pick' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
                   </div>
                   <div v-if="gamePhase === 'waiting'" class="word-pick-form">
-                    <label for="pool-word">Word pool</label>
-                    <div class="pool-word-entry">
-                      <input id="pool-word" v-model="poolWord" maxlength="80" placeholder="Add a word" @keyup.enter="updateWordPool" />
-                      <button type="button" @click="updateWordPool">Add</button>
-                    </div>
-                    <div v-if="wordPool.length" class="word-pool-list">
-                      <span v-for="word in wordPool" :key="word" class="word-pool-chip">{{ word }} <button type="button" :aria-label="`Remove ${word}`" @click="removePoolWord(word)">×</button></span>
-                    </div>
-                    <p class="settings-help">Add at least 3 words before starting.</p>
+                    <label>Selected pool</label>
+                    <p class="settings-help">{{ wordPool.length }} words loaded. Manage categories and words in the <RouterLink class="text-link" to="/word-pools">word pool editor</RouterLink>.</p>
                   </div>
                   <div v-else-if="gamePhase === 'word-pick'" class="word-pick-form">
                     <label>Choose one word for this round</label>
@@ -511,6 +532,10 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                   <div class="game-settings">
+                    <label for="saved-pool">Word pool</label>
+                    <select id="saved-pool" v-model.number="selectedPoolId" :disabled="gamePhase !== 'waiting' || isUpdatingGame" @change="selectPool">
+                      <option v-for="pool in savedPools" :key="pool.id" :value="pool.id">{{ pool.name }}</option>
+                    </select>
                     <label for="drawing-time">Drawing time</label>
                     <select id="drawing-time" v-model.number="drawingTime" :disabled="gamePhase !== 'waiting'" @change="saveGameSettings">
                       <option :value="30">30 sec</option><option :value="60">60 sec</option><option :value="90">90 sec</option><option :value="120">2 min</option>
