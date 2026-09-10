@@ -256,6 +256,7 @@ async function advanceRound() {
     const data = (await response.json()) as { error?: string }
     if (!response.ok) throw new Error(data.error ?? 'Could not advance the game.')
     await refreshPlayers()
+    clearRoundCanvas()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Could not advance the game.'
   } finally {
@@ -273,12 +274,19 @@ async function chooseWord(word: string) {
     })
     const data = (await response.json()) as { error?: string }
     if (!response.ok) throw new Error(data.error ?? 'Could not start the round.')
+    clearRoundCanvas()
     await refreshPlayers()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Could not start the round.'
   } finally {
     isUpdatingGame.value = false
   }
+}
+
+function clearRoundCanvas() {
+  drawingActions.value = []
+  pendingPreview = null
+  sendDrawingMessage({ type: 'drawing-state', actions: [] })
 }
 
 async function chooseRandomWord() {
@@ -522,8 +530,7 @@ onBeforeUnmount(() => {
                     <span class="game-time-badge">{{ gamePhase === 'drawing' || gamePhase === 'word-pick' ? `${secondsRemaining}s` : gamePhase === 'waiting' ? 'Ready' : '—' }}</span>
                   </div>
                   <div v-if="gamePhase === 'waiting'" class="word-pick-form">
-                    <label>Selected pool</label>
-                    <p class="settings-help">{{ wordPool.length }} words loaded. Manage categories and words in the <RouterLink class="text-link" to="/word-pools">word pool editor</RouterLink>.</p>
+                    <p class="settings-help">Choose the pool for this room, then start when players are ready.</p>
                   </div>
                   <div v-else-if="gamePhase === 'word-pick'" class="word-pick-form">
                     <label>Choose one word for this round</label>
@@ -548,12 +555,20 @@ onBeforeUnmount(() => {
                     <select id="word-pick-time" v-model.number="wordPickTime" :disabled="gamePhase !== 'waiting'" @change="saveGameSettings">
                       <option :value="10">10 sec</option><option :value="15">15 sec</option><option :value="20">20 sec</option><option :value="30">30 sec</option>
                     </select>
-                    <label class="developer-toggle"><input v-model="developerMode" type="checkbox" /> Dev mode</label>
                   </div>
                   <button v-if="gamePhase === 'waiting'" type="button" class="start-game-button" :disabled="isUpdatingGame" @click="startGame">
                     {{ isUpdatingGame ? 'Starting…' : 'Start game' }}
                   </button>
-                  <button v-else-if="developerMode && (gamePhase === 'drawing' || gamePhase === 'round-break')" type="button" class="skip-round-button" :disabled="isUpdatingGame" @click="advanceRound">
+                  <button type="button" class="dev-panel-toggle" :aria-pressed="developerMode" @click="developerMode = !developerMode">
+                    {{ developerMode ? 'Hide dev panel' : 'Show dev panel' }}
+                  </button>
+                </section>
+
+                <section v-if="developerMode" class="host-panel dev-panel" aria-label="Developer panel">
+                  <div class="panel-heading"><div><span class="panel-kicker">Developer</span><h2>Dev panel</h2></div><span class="count-badge">On</span></div>
+                  <div class="dev-panel-section"><span class="panel-kicker">Word pool</span><strong>{{ savedPools.find((pool) => pool.id === selectedPoolId)?.name ?? 'No pool selected' }}</strong><span>{{ wordPool.length }} words loaded</span><RouterLink class="text-link" to="/word-pools">Open word pool editor ↗</RouterLink></div>
+                  <div class="dev-panel-section"><span class="panel-kicker">Round state</span><strong>{{ gamePhase }}</strong><span v-if="currentRound">Round {{ currentRound }} of {{ rounds }}</span><span v-else>Ready to start</span><span v-if="gamePhase === 'drawing' || gamePhase === 'word-pick'">{{ secondsRemaining }}s remaining</span></div>
+                  <button v-if="gamePhase === 'drawing' || gamePhase === 'round-break'" type="button" class="skip-round-button" :disabled="isUpdatingGame" @click="advanceRound">
                     {{ gamePhase === 'round-break' ? 'Start next round' : 'Skip round' }}
                   </button>
                 </section>
@@ -584,9 +599,8 @@ onBeforeUnmount(() => {
                 <div class="drawing-heading">
                   <div>
                     <p class="eyebrow">Canvas</p>
-                      <h2>{{ gamePhase === 'waiting' ? 'Waiting for players' : gamePhase === 'word-pick' ? 'Choose a word to begin' : gamePhase === 'finished' ? 'Final audience score' : gamePhase === 'round-break' ? 'Get ready' : 'Draw the clue' }}</h2>
+                    <h2>Drawing canvas</h2>
                   </div>
-                  <span class="drawing-status"><i></i> {{ gamePhase === 'waiting' ? 'Waiting' : gamePhase === 'finished' ? 'Finished' : gamePhase === 'round-break' ? 'Break' : `${secondsRemaining}s` }}</span>
                 </div>
                 <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
                   <span class="panel-kicker">Final results</span>
