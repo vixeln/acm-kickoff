@@ -43,6 +43,7 @@ export type Room = {
 
 const rooms = new Map<string, Room>()
 const roomCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const developmentWordPool = ['dog', 'bee', 'alligator']
 
 function normalizeRoomCode(code: string) {
   return code.trim().toUpperCase()
@@ -61,7 +62,7 @@ function publicRoom(room: Room) {
   }
 }
 
-export function createRoom(secretWord = '', wordPool: string[] = [], wordPoolId: number | null = null) {
+export function createRoom(secretWord = '', wordPool: string[] = developmentWordPool, wordPoolId: number | null = null) {
   let code = ''
   do {
     code = Array.from({ length: 4 }, () =>

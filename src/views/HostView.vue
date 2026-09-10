@@ -35,6 +35,7 @@ const poolWord = ref('')
 const wordOptions = ref<string[]>([])
 const savedPools = ref<Array<{ id: number; name: string; words: string[] }>>([])
 const selectedPoolId = ref<number | null>(null)
+const developmentPool = { id: 0, name: 'Dev', words: ['dog', 'bee', 'alligator'] }
 const drawingActions = ref<DrawingAction[]>([])
 let drawingSocket: WebSocket | undefined
 let drawingReconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -106,8 +107,12 @@ async function loadSavedPools() {
     if (!response.ok) return
     const data = (await response.json()) as { pools?: typeof savedPools.value }
     savedPools.value = data.pools ?? []
+    if (!savedPools.value.length && isLoopbackHost.value) savedPools.value = [developmentPool]
     selectedPoolId.value = selectedPoolId.value ?? savedPools.value[0]?.id ?? null
-  } catch (error) { console.error(error) }
+  } catch (error) {
+    console.error(error)
+    if (isLoopbackHost.value) { savedPools.value = [developmentPool]; selectedPoolId.value = developmentPool.id }
+  }
 }
 
 async function startRoom() {
@@ -203,6 +208,10 @@ async function refreshPlayers() {
 
 async function selectPool() {
   if (!roomCode.value || selectedPoolId.value === null || gamePhase.value !== 'waiting') return
+  if (selectedPoolId.value === developmentPool.id) {
+    wordPool.value = developmentPool.words
+    return
+  }
   isUpdatingGame.value = true
   try {
     const response = await fetch(`/api/rooms/${roomCode.value}/game/pool-source`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ poolId: selectedPoolId.value }) })
