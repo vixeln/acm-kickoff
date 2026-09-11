@@ -558,7 +558,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="join-card">
-                <img :src="qrCode" alt="QR code for the player login address" width="72" height="72" />
+                    <a class="qr-link" :href="`/qr?room=${encodeURIComponent(roomCode)}`" target="_blank" rel="noopener" aria-label="Open QR code full screen"><img :src="qrCode" alt="QR code for the player login address" width="72" height="72" /></a>
                 <div>
                   <strong>Join the game</strong>
                   <span>Scan to play on your phone</span>

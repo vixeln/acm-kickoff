@@ -699,6 +699,12 @@ button:disabled {
   align-items: center;
   gap: 14px;
 }
+.qr-link { display: block; line-height: 0; }
+.qr-link img { cursor: pointer; }
+.qr-fullscreen { display: grid; min-height: 100vh; place-items: center; align-content: center; gap: 12px; padding: 32px; background: #f4f1ea; text-align: center; }
+.qr-fullscreen h1 { margin: 0; font-size: clamp(2rem, 6vw, 4rem); }
+.qr-fullscreen-room { color: #202124; font-size: clamp(1.5rem, 4vw, 2.5rem); letter-spacing: .2em; }
+.qr-fullscreen img { width: min(78vw, 720px); height: min(78vw, 720px); padding: 18px; background: white; border-radius: 18px; }
 
 .host-brand .mark {
   width: 42px;
