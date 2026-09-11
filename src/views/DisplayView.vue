@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
             </div>
           </aside>
           <section class="host-drawing display-drawing" aria-label="Audience drawing display">
-            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'word-pick' ? 'Host is picking a word' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><div class="display-clue-wrap"><div v-if="wordClue" class="display-clue"><span>Guess the word</span><strong>{{ wordClue }}</strong></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div></div>
+            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'word-pick' ? 'Host is picking a word' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><div v-if="wordClue" class="canvas-word-clue display-canvas-word-clue"><span>GUESS</span><strong>{{ wordClue }}</strong></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div>
             <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
               <span class="panel-kicker">Final results</span>
               <strong>Final audience score</strong>

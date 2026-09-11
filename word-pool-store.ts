@@ -1,6 +1,7 @@
 import { sql } from 'bun'
 
 const hasDatabase = Boolean(Bun.env.DATABASE_URL?.trim())
+const developmentPool: WordPool = { id: 0, name: 'Dev', words: ['dog', 'bee', 'alligator'] }
 
 export type WordPool = { id: number; name: string; words: string[] }
 
@@ -32,14 +33,14 @@ export async function initializeWordPoolStore() {
 }
 
 export async function listWordPools(): Promise<WordPool[]> {
-  if (!hasDatabase) return []
+  if (!hasDatabase) return [developmentPool]
   const pools = await sql<{ id: number; name: string }[]>`SELECT id, name FROM word_pools ORDER BY name ASC`
   const items = await Promise.all(pools.map((pool) => readPool(pool.id)))
   return items.filter((item): item is WordPool => Boolean(item))
 }
 
 export async function loadWordPool(poolId?: number) {
-  if (!hasDatabase) return []
+  if (!hasDatabase) return poolId === undefined || poolId === developmentPool.id ? [...developmentPool.words] : []
   const rows = poolId
     ? await sql<{ word: string }[]>`SELECT word FROM words WHERE pool_id = ${poolId} ORDER BY id ASC`
     : await sql<{ word: string }[]>`SELECT w.word FROM words w JOIN word_pools p ON p.id = w.pool_id ORDER BY (p.name = 'General') DESC, w.id ASC`

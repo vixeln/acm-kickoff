@@ -633,10 +633,7 @@ onBeforeUnmount(() => {
                     <p class="eyebrow">Canvas</p>
                     <h2>Drawing canvas</h2>
                   </div>
-                  <div v-if="secretWord && (gamePhase === 'drawing' || gamePhase === 'round-break' || gamePhase === 'finished')" class="secret-word-display">
-                    <span>Selected word</span>
-                    <strong>{{ secretWord }}</strong>
-                  </div>
+                  <div v-if="secretWord && (gamePhase === 'drawing' || gamePhase === 'round-break' || gamePhase === 'finished')" class="canvas-word-clue host-canvas-word-clue"><span>DRAW</span><strong>{{ secretWord }}</strong></div>
                 </div>
                 <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
                   <span class="panel-kicker">Final results</span>

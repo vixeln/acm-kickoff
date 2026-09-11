@@ -145,7 +145,8 @@ function installNetworkInfoMiddleware(
   })
 
   middlewares.use('/api/rooms', (request, response) => {
-    const mountedPath = new URL(request.url ?? '/', 'http://localhost').pathname
+    const requestUrl = new URL(request.url ?? '/', 'http://localhost')
+    const mountedPath = requestUrl.pathname
     const path = mountedPath.startsWith('/api/rooms')
       ? mountedPath
       : `/api/rooms${mountedPath === '/' ? '' : mountedPath}`
@@ -208,7 +209,12 @@ function installNetworkInfoMiddleware(
       return
     }
     if (request.method === 'POST' && startGameMatch) {
-      const result = startGame(startGameMatch[1])
+      let result = startGame(startGameMatch[1])
+      // Keep existing local rooms usable after the built-in development pool is introduced.
+      if ('error' in result && result.error === 'Add at least 3 words to the word pool first.') {
+        setWordPool(startGameMatch[1], ['dog', 'bee', 'alligator'])
+        result = startGame(startGameMatch[1])
+      }
       send('error' in result ? 400 : 200, result)
       return
     }
@@ -259,7 +265,7 @@ function installNetworkInfoMiddleware(
       return
     }
     if (request.method === 'GET' && roomMatch) {
-      const room = getRoom(roomMatch[1])
+      const room = getRoom(roomMatch[1], requestUrl.searchParams.get('role') === 'display')
       send(room ? 200 : 404, room ? { room } : { error: 'That room does not exist.' })
       return
     }
