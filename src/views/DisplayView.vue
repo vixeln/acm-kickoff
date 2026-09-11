@@ -20,7 +20,10 @@ const scoreboard = ref<Array<{ playerId: string; playerName: string; score: numb
 const roundScores = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
 const wordClue = ref('')
 const scoreAnimationProgress = ref(1)
+const finalRevealPlace = ref(0)
 let scoreAnimationFrame = 0
+let finalRevealTimers: ReturnType<typeof setTimeout>[] = []
+const podiumPlayers = computed(() => scoreboard.value.slice(0, 3))
 const roundLeaderboard = computed(() => scoreboard.value.slice(0, 10).map((player) => {
   const roundScore = roundScores.value.find((entry) => entry.playerId === player.playerId)?.score ?? 0
   const before = Math.max(0, player.score - roundScore)
@@ -137,9 +140,20 @@ function connectDisplaySocket() {
   })
 }
 watch([gamePhase, currentRound], ([phase]) => {
+  if (phase === 'finished') {
+    finalRevealPlace.value = 0
+    finalRevealTimers.forEach(clearTimeout)
+    finalRevealTimers = [
+      setTimeout(() => { finalRevealPlace.value = 1 }, 3000),
+      setTimeout(() => { finalRevealPlace.value = 2 }, 4000),
+      setTimeout(() => { finalRevealPlace.value = 3 }, 9000),
+    ]
+    return
+  }
   if (phase !== 'round-break') return
   scoreAnimationProgress.value = 0
   if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
+  finalRevealTimers.forEach(clearTimeout)
   const startedAt = performance.now()
   const animate = (now: number) => {
     scoreAnimationProgress.value = Math.min(1, (now - startedAt) / 1400)
@@ -154,6 +168,7 @@ onBeforeUnmount(() => {
   if (drawingReconnectTimer) clearTimeout(drawingReconnectTimer)
   drawingSocket?.close()
   if (scoreAnimationFrame) cancelAnimationFrame(scoreAnimationFrame)
+  finalRevealTimers.forEach(clearTimeout)
 })
 </script>
 
@@ -199,7 +214,11 @@ onBeforeUnmount(() => {
             <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
               <span class="panel-kicker">Final results</span>
               <strong>Final audience score</strong>
-              <div class="scoreboard-list" aria-live="polite"><div v-for="player in scoreboard" :key="player.playerId"><span>{{ player.playerName }}</span><strong>{{ player.score }}</strong></div></div>
+              <div class="final-podiums" aria-live="polite">
+                <div v-if="finalRevealPlace >= 1" class="podium podium-bronze"><div class="podium-player"><strong>{{ podiumPlayers[2]?.playerName ?? '' }}</strong><span v-if="podiumPlayers[2]">{{ podiumPlayers[2].score }} pts</span></div><div class="podium-block"><b>3</b></div></div>
+                <div v-if="finalRevealPlace >= 2" class="podium podium-silver"><div class="podium-player"><strong>{{ podiumPlayers[1]?.playerName ?? '' }}</strong><span v-if="podiumPlayers[1]">{{ podiumPlayers[1].score }} pts</span></div><div class="podium-block"><b>2</b></div></div>
+                <div v-if="finalRevealPlace >= 3" class="podium podium-gold"><div class="podium-player"><strong>{{ podiumPlayers[0]?.playerName ?? '' }}</strong><span v-if="podiumPlayers[0]">{{ podiumPlayers[0].score }} pts</span></div><div class="podium-block"><b>1</b></div></div>
+              </div>
               <small>Thanks for playing</small>
             </div>
             <div v-else-if="gamePhase === 'round-break'" class="score-reveal-stage">
