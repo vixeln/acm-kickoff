@@ -370,11 +370,20 @@ button:disabled {
   letter-spacing: -0.03em;
 }
 
+.secret-word-display { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid rgb(33 140 76 / 22%); border-radius: 10px; color: #176b39; background: rgb(255 255 255 / 72%); text-align: right; }
+.secret-word-display span { color: #85878b; font-size: .62rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.secret-word-display strong { font-size: 1rem; }
+
 .drawing-status {
   color: #218c4c;
   font-size: 0.8rem;
   font-weight: 800;
 }
+
+.display-clue-wrap { display: grid; gap: 7px; justify-items: end; }
+.display-clue { display: grid; gap: 2px; padding: 7px 12px; border: 1px solid rgb(66 103 213 / 20%); border-radius: 10px; background: rgb(255 255 255 / 72%); text-align: right; }
+.display-clue span { color: #85878b; font-size: .62rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.display-clue strong { color: #202124; font-size: 1.15rem; letter-spacing: .16em; }
 
 .drawing-canvas {
   width: 100%;

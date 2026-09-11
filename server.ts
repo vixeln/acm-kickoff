@@ -349,7 +349,7 @@ const server = Bun.serve<SocketData>({
 
     const roomMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]+)$/i)
     if (roomMatch && request.method === 'GET') {
-      const room = getRoom(roomMatch[1])
+      const room = getRoom(roomMatch[1], url.searchParams.get('role') === 'display')
       return room
         ? json({ room })
         : json({ error: 'That room does not exist.' }, { status: 404 })

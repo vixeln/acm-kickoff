@@ -18,6 +18,7 @@ const currentRound = ref(0)
 const rounds = ref(3)
 const scoreboard = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
 const roundScores = ref<Array<{ playerId: string; playerName: string; score: number }>>([])
+const wordClue = ref('')
 const scoreAnimationProgress = ref(1)
 let scoreAnimationFrame = 0
 const roundLeaderboard = computed(() => scoreboard.value.slice(0, 10).map((player) => {
@@ -40,17 +41,18 @@ let latestGuessesRequest = 0
 
 async function refreshRoom() {
   if (!roomCode) return
-  const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}`, { cache: 'no-store' })
+  const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}?role=display`, { cache: 'no-store' })
   if (!response.ok) {
     errorMessage.value = 'That room is not available.'
     return
   }
-  const data = (await response.json()) as { room: { players: typeof players.value; game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number }; scoreboard?: typeof scoreboard.value; roundScores?: typeof roundScores.value } } }
+  const data = (await response.json()) as { room: { players: typeof players.value; game?: { phase: typeof gamePhase.value; currentRound: number; settings: { rounds: number }; wordClue?: string; scoreboard?: typeof scoreboard.value; roundScores?: typeof roundScores.value } } }
   players.value = data.room.players
   if (data.room.game) {
     gamePhase.value = data.room.game.phase
     currentRound.value = data.room.game.currentRound
     rounds.value = data.room.game.settings.rounds
+    wordClue.value = data.room.game.wordClue ?? ''
     scoreboard.value = data.room.game.scoreboard ?? []
     roundScores.value = data.room.game.roundScores ?? []
   }
@@ -193,7 +195,7 @@ onBeforeUnmount(() => {
             </div>
           </aside>
           <section class="host-drawing display-drawing" aria-label="Audience drawing display">
-            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'word-pick' ? 'Host is picking a word' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div>
+            <div class="drawing-heading"><div><p class="eyebrow">Canvas</p><h2>{{ gamePhase === 'waiting' ? 'Waiting for the game' : gamePhase === 'word-pick' ? 'Host is picking a word' : gamePhase === 'finished' ? 'Game complete' : gamePhase === 'round-break' ? 'Next round soon' : `Round ${currentRound} of ${rounds}` }}</h2></div><div class="display-clue-wrap"><div v-if="wordClue" class="display-clue"><span>Guess the word</span><strong>{{ wordClue }}</strong></div><span class="drawing-status"><i></i> {{ gamePhase === 'drawing' ? 'Live' : gamePhase }}</span></div></div>
             <div v-if="gamePhase === 'finished'" class="score-reveal-stage final-score-stage">
               <span class="panel-kicker">Final results</span>
               <strong>Final audience score</strong>

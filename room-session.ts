@@ -59,7 +59,11 @@ function normalizeRoomCode(code: string) {
   return code.trim().toUpperCase()
 }
 
-function publicRoom(room: Room) {
+function obfuscateWord(word: string) {
+  return word.replace(/[\p{L}]/gu, '_')
+}
+
+function publicRoom(room: Room, includeClue = false) {
   return {
     code: room.code,
     players: [...room.players.values()].map(({ id, name, joinedAt }) => ({ id, name, joinedAt })),
@@ -68,6 +72,9 @@ function publicRoom(room: Room) {
       settings: room.settings,
       currentRound: room.currentRound,
       phaseStartedAt: room.phaseStartedAt,
+      ...(includeClue && room.phase !== 'waiting' && room.phase !== 'word-pick'
+        ? { wordClue: obfuscateWord(room.secretWord) }
+        : {}),
       scoreboard: [...room.players.values()]
         .map((player) => ({ playerId: player.id, playerName: player.name, score: room.scores.get(player.id) ?? 0 }))
         .sort((a, b) => b.score - a.score || a.playerName.localeCompare(b.playerName)),
@@ -278,9 +285,9 @@ export function getHostRoom(code: string) {
   return room ? { ...publicRoom(room), secretWord: room.secretWord, wordPool: room.wordPool, wordPoolId: room.wordPoolId, wordOptions: room.wordOptions } : null
 }
 
-export function getRoom(code: string) {
+export function getRoom(code: string, includeClue = false) {
   const room = rooms.get(normalizeRoomCode(code))
-  return room ? publicRoom(room) : null
+  return room ? publicRoom(room, includeClue) : null
 }
 
 export function deleteRoom(code: string) {
